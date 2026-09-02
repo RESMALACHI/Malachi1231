@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8" />
+<title>הגדרות — R.E.S</title>
+<style>
+  @font-face {
+    font-family: 'RES Rubik';
+    font-style: normal;
+    font-weight: 300 900;
+    font-display: swap;
+    src: url(fonts/rubik-hebrew.woff2) format('woff2');
+    unicode-range: U+0307-0308, U+0590-05FF, U+200C-2010, U+20AA, U+25CC, U+FB1D-FB4F;
+  }
+  @font-face {
+    font-family: 'RES Rubik';
+    font-style: normal;
+    font-weight: 300 900;
+    font-display: swap;
+    src: url(fonts/rubik-latin.woff2) format('woff2');
+    unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+2000-206F, U+20AC, U+2212, U+FEFF, U+FFFD;
+  }
+  * { box-sizing: border-box; }
+  body { font-family: 'RES Rubik','Segoe UI',system-ui,Arial,sans-serif; font-weight: 600;
+         background:#fafaf9; color:#1c1917; margin:0; padding:28px;
+         display:flex; justify-content:center; }
+  .card { background:#fff; border:1px solid #e7e5e4; border-radius:18px; padding:0 22px 22px;
+          width:100%; max-width:420px; overflow:hidden;
+          box-shadow:0 14px 36px rgba(28,25,23,.10); }
+  .hairline { height:3px; margin:0 -22px 18px;
+              background:linear-gradient(to left,#b45309,#fde047,#d97706); }
+  h1 { font-size:18px; font-weight:800; letter-spacing:-.01em; margin:0 0 4px; }
+  h1 .gold { background:linear-gradient(to left,#92400e,#d97706,#f59e0b);
+             -webkit-background-clip:text; background-clip:text; color:transparent; }
+  .sub { font-size:13px; font-weight:500; color:#78716c; margin:0 0 18px; line-height:1.65; }
+  label { display:block; font-size:13px; font-weight:800; margin:14px 0 5px; }
+  input, select { width:100%; padding:10px 12px; border:1.5px solid #e7e5e4; border-radius:11px;
+                  font-size:14px; font-weight:600; font-family:inherit; color:#1c1917;
+                  background:#fafaf9; outline:none;
+                  transition:border-color .12s, box-shadow .12s; }
+  input:focus, select:focus { border-color:#f59e0b; background:#fff;
+                              box-shadow:0 0 0 3px rgba(245,158,11,.14); }
+  input[dir=ltr] { text-align:left; }
+  button { width:100%; margin-top:18px; padding:12px; border:0; border-radius:12px;
+           background:#1c1917; color:#fff; font-size:14px; font-weight:800; cursor:pointer;
+           font-family:inherit; transition:background .12s; }
+  button:hover { background:#000; }
+  .msg { font-size:13px; font-weight:700; margin-top:12px; min-height:18px; }
+  .ok { color:#15803d; } .bad { color:#b91c1c; }
+  .hint { font-size:11.5px; font-weight:500; color:#a8a29e; margin-top:5px; line-height:1.5; }
+</style>
+</head>
+<body>
+  <div class="card">
+    <div class="hairline"></div>
+    <h1>מכללת <span class="gold">R.E.S</span> ← BMBY</h1>
+    <p class="sub">הגדרה חד-פעמית במחשב הזה. אחרי זה, כל פתיחה של עמוד לקוח או «הוספת פגישה» תציג את הפגישות שלכם.</p>
+
+    <label for="agent">שם הסוכן</label>
+    <select id="agent">
+      <option value="">בחרו…</option>
+      <option>מלאכי אזערי</option>
+      <option>ודיע</option>
+      <option>מרים</option>
+      <option>עדי</option>
+      <option>ויטלי</option>
+      <option>שליו</option>
+      <option>איציק</option>
+    </select>
+    <p class="hint">חייב להיות זהה לשם שבמערכת הפגישות.</p>
+
+    <label for="token">קוד גישה</label>
+    <input id="token" type="text" dir="ltr" autocomplete="off" value="0000" />
+    <p class="hint">כבר מוזן. רק בחרו שם ולחצו שמירה.</p>
+
+    <button id="save">שמירה</button>
+    <p class="msg" id="msg"></p>
+  </div>
+  <script src="options.js"></script>
+</body>
+</html>

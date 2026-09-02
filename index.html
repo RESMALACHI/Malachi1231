@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <!-- viewport-fit=cover lets safe-area insets work on notched iPhones -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#0f172a" />
+    <meta name="description" content="מערכת מעקב הפגישות של מכללת R.E.S — סנכרון יומנים, נוכחות ודוחות." />
+
+    <!-- Installable app. iOS ignores the manifest's icon and display fields,
+         so it needs its own apple-* tags saying the same things. -->
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="/icon-192.png" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="R.E.S" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <title>R.E.S · מעקב פגישות</title>
+    <!-- Hebrew-friendly font. Cairo carries the Arabic of the ספיץ page; Google
+         serves it by unicode-range, so a Hebrew-only session never fetches it. -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;600;700;800;900&family=Cairo:wght@500;700;900&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>

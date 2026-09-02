@@ -1,0 +1,38 @@
+{
+  "name": "מכללת R.E.S · מעקב פגישות",
+  "short_name": "R.E.S",
+  "description": "מערכת מעקב הפגישות של מכללת R.E.S — סנכרון יומנים, נוכחות ודוחות.",
+  "lang": "he",
+  "dir": "rtl",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f8fafc",
+  "theme_color": "#0f172a",
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    {
+      "name": "סיכום פגישה",
+      "short_name": "סיכום פגישה",
+      "url": "/meeting-summary",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    },
+    {
+      "name": "סיכום יום",
+      "short_name": "סיכום יום",
+      "url": "/day-summary",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    },
+    {
+      "name": "דוחות",
+      "short_name": "דוחות",
+      "url": "/reports",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    }
+  ]
+}

@@ -1,0 +1,445 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    @apply bg-slate-50 text-slate-900 font-sans antialiased;
+    /* RTL is set on <html dir="rtl">; keep numerals/dates readable */
+    font-feature-settings: 'tnum' 1;
+  }
+
+  /* The background pattern can reduce contrast — force secondary text to a dark,
+     readable near-black everywhere. White text (buttons) and semantic colours
+     (green/red/blue…) are untouched. */
+  .text-slate-400,
+  .text-slate-500,
+  .text-slate-600,
+  .text-slate-700 {
+    color: #0f172a !important;
+  }
+
+  /* …but the dark sidebar opts out — forcing near-black there made its items
+     unreadable (black on black). Restore the real Tailwind values inside it. */
+  .dark-panel .text-slate-400 {
+    color: #94a3b8 !important;
+  }
+  .dark-panel .text-slate-500 {
+    color: #64748b !important;
+  }
+  .dark-panel .text-slate-600,
+  .dark-panel .text-slate-700 {
+    color: #cbd5e1 !important;
+  }
+
+  /* NOTE: animations always play (per request). We previously disabled them
+     under prefers-reduced-motion, but that hid all motion on systems where the
+     OS "reduce motion" setting is on. To re-enable that accessibility behavior,
+     restore an @media (prefers-reduced-motion: reduce) block here. */
+
+  /* ── International-grade finishing touches ─────────────────────────── */
+  /* Brand-gold text selection */
+  ::selection {
+    background: rgba(251, 191, 36, 0.35);
+  }
+
+  /* Tighter, editorial display tracking on headings */
+  h1,
+  h2,
+  h3 {
+    letter-spacing: -0.02em;
+  }
+
+  /* Slim, quiet scrollbars everywhere */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: #cbd5e1 transparent;
+  }
+  *::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  *::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 9999px;
+  }
+  *::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
+  }
+  *::-webkit-scrollbar-track {
+    background: transparent;
+  }
+}
+
+@layer components {
+  /* Reusable surface card — layered "designer" shadow instead of a flat one */
+  .card {
+    @apply bg-white rounded-2xl border border-slate-200/70;
+    box-shadow:
+      0 1px 2px rgba(15, 23, 42, 0.04),
+      0 12px 32px -16px rgba(15, 23, 42, 0.14);
+  }
+
+  /* Applied to the Reports wrapper only while exporting it to PNG. Gives a
+     solid white, padded container AND freezes every animation/transition/
+     transform underneath it — otherwise html-to-image snapshots a mid-flight
+     transform matrix and the output comes out skewed / letterboxed. */
+  .report-capture {
+    @apply rounded-2xl border border-slate-200 bg-white p-5 sm:p-6;
+    min-width: 820px;
+  }
+  .report-capture,
+  .report-capture * {
+    animation: none !important;
+    transition: none !important;
+    transform: none !important;
+  }
+  /* html-to-image collapses line-height on wrapped text, so a 2-line KPI title
+     spills onto the metric below it. During capture we keep titles on one line
+     and pin generous line-heights so labels never touch the numbers. */
+  .report-capture .kpi-title {
+    white-space: nowrap !important;
+  }
+  .report-capture .kpi-title,
+  .report-capture .kpi-value,
+  .report-capture .kpi-subtitle {
+    line-height: 1.6 !important;
+  }
+  .report-capture .kpi-value {
+    margin-top: 0.35rem !important;
+  }
+  /* Keep table rows from collapsing line-height in the html-to-image clone. */
+  .report-capture td,
+  .report-capture th {
+    line-height: 1.6 !important;
+  }
+
+  /* Lift + glow on hover for clickable surfaces */
+  .card-interactive {
+    @apply transition-all duration-300 ease-out hover:-translate-y-1 hover:shadow-lg
+      hover:shadow-slate-900/10;
+  }
+
+  /* Primary button — playful press + lift */
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl bg-slate-900
+      px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-all duration-200
+      hover:-translate-y-0.5 hover:bg-black hover:shadow-md hover:shadow-slate-900/30
+      focus:outline-none focus:ring-2 focus:ring-slate-500 focus:ring-offset-2
+      active:translate-y-0 active:scale-95 disabled:cursor-not-allowed disabled:opacity-60;
+  }
+
+  .btn-ghost {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-3 py-2
+      text-sm font-medium text-slate-600 transition hover:bg-slate-100 active:scale-95;
+  }
+
+  /* Monochrome gradient text (headings) */
+  .text-gradient {
+    @apply bg-gradient-to-l from-slate-900 via-slate-700 to-slate-900 bg-clip-text text-transparent;
+  }
+
+  /* Frosted-glass surface */
+  .glass {
+    @apply border border-white/60 bg-white/70 shadow-xl shadow-slate-900/10 backdrop-blur-xl;
+  }
+
+  /* Black gradient button with an animated sheen on hover */
+  .btn-gradient {
+    @apply relative inline-flex items-center justify-center gap-2 overflow-hidden rounded-xl
+      px-4 py-2.5 text-sm font-semibold text-white shadow-md shadow-slate-900/30
+      transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-slate-900/40
+      focus:outline-none focus:ring-2 focus:ring-slate-500 focus:ring-offset-2
+      active:translate-y-0 active:scale-95 disabled:cursor-not-allowed disabled:opacity-60;
+    background-image: linear-gradient(110deg, #0f172a 0%, #334155 50%, #000000 100%);
+  }
+  /* the sweeping sheen */
+  .btn-gradient::after {
+    content: '';
+    @apply absolute inset-0 -translate-x-[150%] skew-x-12 bg-white/25;
+    transition: transform 0.8s ease;
+  }
+  .btn-gradient:hover::after {
+    @apply translate-x-[150%];
+  }
+
+  /* Shimmer skeleton placeholder */
+  .skeleton {
+    @apply rounded-md;
+    background: linear-gradient(
+      90deg,
+      theme('colors.slate.100') 25%,
+      theme('colors.slate.200') 37%,
+      theme('colors.slate.100') 63%
+    );
+    background-size: 200% 100%;
+    @apply animate-shimmer;
+  }
+}
+
+/* ── Loading mark ──────────────────────────────────────────────────────────
+   The three bars of the R.E.S logo, rising in turn — the same motif the old
+   opening splash drew, but looping, and shown only while something is actually
+   loading. transform-only, so it stays smooth on the weak office machines.
+
+   (The splash it replaced held every new tab for 2.35s even when there was
+   nothing to wait for.) */
+@keyframes res-load-bar {
+  0%,
+  100% {
+    transform: scaleY(0.3);
+    opacity: 0.5;
+  }
+  50% {
+    transform: scaleY(1);
+    opacity: 1;
+  }
+}
+
+.res-bar {
+  transform-origin: bottom;
+  animation: res-load-bar 1s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+}
+
+/* ── Mobile ergonomics ─────────────────────────────────────────────────── */
+
+/* iOS Safari auto-zooms into any focused input under 16px — the single most
+   disorienting thing on a mobile form. Pin inputs to 16px on phones only. */
+@media (max-width: 639px) {
+  input,
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}
+
+/* Bottom padding that respects the iPhone home-indicator area. */
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* ══════════════════════════ מצב לילה ══════════════════════════
+   One class on <html>. The app is styled with light utilities in ~30 files;
+   instead of editing every one, the handful of utilities that MEAN "light
+   surface" or "dark text" are remapped here under .dark. New code can also
+   use dark: variants (tailwind darkMode:'class'), but this layer is what
+   makes the existing app hold together at night.
+
+   The text-slate remaps carry !important because the LIGHT theme (above)
+   already forces those classes to near-black with !important — this block
+   has to win the same fight in the other direction. */
+.dark {
+  color-scheme: dark;
+}
+.dark body {
+  background-color: #0a1322;
+  color: #e8eef7;
+}
+
+/* Text */
+.dark .text-slate-900 { color: #f8fafc !important; }
+.dark .text-slate-800 { color: #eef2f7 !important; }
+.dark .text-slate-700 { color: #dce5f1 !important; }
+.dark .text-slate-600 { color: #c6d2e3 !important; }
+.dark .text-slate-500 { color: #a9b8cd !important; }
+.dark .text-slate-400 { color: #8799b4 !important; }
+.dark .text-slate-300 { color: #687d9f !important; }
+/* Headings that use the gradient ink — near-black on dark is invisible.
+   Raw CSS, not @apply: several of these utilities are redefined in this very
+   block, and applying a redefined class is a circular dependency. */
+.dark .text-gradient {
+  background-image: linear-gradient(to left, #f1f5fb, #c3d0e4, #f1f5fb);
+}
+
+/* Surfaces */
+.dark .bg-white { background-color: #101b30; }
+.dark .bg-slate-50 { background-color: #0d1729; }
+.dark .bg-slate-100 { background-color: #1a2740; }
+.dark .bg-slate-200 { background-color: #243656; }
+.dark .bg-slate-800 { background-color: #2c3f60; }
+.dark .bg-slate-900 { background-color: #3d5578; }
+.dark .bg-white\/70 { background-color: rgba(13, 23, 41, 0.78); }
+.dark .bg-white\/45 { background-color: rgba(13, 23, 41, 0.55); }
+.dark .bg-slate-50\/60 { background-color: rgba(13, 23, 41, 0.6); }
+.dark .bg-slate-50\/80 { background-color: rgba(13, 23, 41, 0.8); }
+.dark .bg-slate-100\/70 { background-color: rgba(26, 39, 64, 0.7); }
+.dark .hover\:bg-slate-50:hover { background-color: #16233c; }
+.dark .hover\:bg-slate-100:hover { background-color: #223250; }
+.dark .focus\:bg-white:focus { background-color: #1a2740; }
+
+/* Accent tints — chips, notices, status pills */
+.dark .bg-red-50 { background-color: #35131f; }
+.dark .bg-red-100 { background-color: #48192a; }
+.dark .bg-green-50 { background-color: #0d2b1d; }
+.dark .bg-green-100 { background-color: #123a27; }
+.dark .bg-amber-50 { background-color: #33260c; }
+.dark .bg-amber-50\/60 { background-color: rgba(51, 38, 12, 0.6); }
+.dark .bg-amber-100 { background-color: #443310; }
+.dark .bg-indigo-50 { background-color: #1c2148; }
+.dark .bg-indigo-100 { background-color: #262e5e; }
+.dark .bg-blue-100 { background-color: #16294d; }
+.dark .text-red-700 { color: #fca5a5; }
+.dark .text-red-600 { color: #f87171; }
+.dark .text-green-700 { color: #6ee7a7; }
+.dark .text-green-800 { color: #86efac; }
+.dark .text-green-600 { color: #4ade80; }
+.dark .text-amber-700 { color: #fcd34d; }
+.dark .text-amber-800 { color: #fde68a; }
+.dark .text-indigo-700 { color: #a5b4fc; }
+.dark .text-indigo-800 { color: #c7d2fe; }
+.dark .text-blue-700 { color: #93c5fd; }
+.dark .text-indigo-900 { color: #dde2ff; }
+.dark .text-amber-900 { color: #fef3c7; }
+
+/* Lines */
+.dark .border-slate-100 { border-color: #263a59; }
+.dark .border-slate-200 { border-color: #314663; }
+.dark .border-slate-300 { border-color: #415879; }
+.dark .border-white\/60 { border-color: #223350; }
+.dark .border-red-200 { border-color: #5b2233; }
+.dark .border-green-200 { border-color: #1d4a33; }
+.dark .border-amber-200 { border-color: #5a4310; }
+.dark .border-amber-300 { border-color: #6b5214; }
+.dark .border-indigo-200 { border-color: #32406e; }
+.dark .ring-slate-200 { --tw-ring-color: #223350; }
+.dark .ring-slate-100 { --tw-ring-color: #1b2a44; }
+.dark .ring-slate-800 { --tw-ring-color: #223350; }
+.dark .divide-slate-100 > :not([hidden]) ~ :not([hidden]) { border-color: #1b2a44; }
+.dark .divide-slate-200 > :not([hidden]) ~ :not([hidden]) { border-color: #223350; }
+
+/* Component classes (compiled from @apply — the utility remaps can't reach them) */
+.dark .card {
+  background-color: #101b30;
+  border-color: rgba(34, 51, 80, 0.8);
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.35),
+    0 12px 32px -16px rgba(0, 0, 0, 0.55);
+}
+.dark .glass {
+  border-color: rgba(34, 51, 80, 0.7);
+  background-color: rgba(16, 27, 48, 0.75);
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.45);
+}
+.dark .btn-primary {
+  background-color: #e8eef7;
+  color: #0f172a;
+}
+.dark .btn-primary:hover {
+  background-color: #ffffff;
+}
+.dark .btn-primary:focus {
+  --tw-ring-color: #64748b;
+}
+.dark .btn-ghost {
+  color: #b3c2d9;
+}
+.dark .btn-ghost:hover {
+  background-color: #1a2740;
+}
+
+/* Scrollbars follow the room */
+.dark * {
+  scrollbar-color: #2d4166 transparent;
+}
+.dark *::-webkit-scrollbar-thumb {
+  background: #2d4166;
+}
+
+/* Calendar grid rules — inline-styled from calendarTheme.js, themed here. */
+:root {
+  --cal-line-column: #dadce0;
+  --cal-line-hour: #e8eaed;
+  --cal-chrome: #70757a;
+  --cal-surface: rgba(255, 255, 255, 0.62);
+}
+.dark {
+  --cal-line-column: #314663;
+  --cal-line-hour: #263a59;
+  --cal-chrome: #a9b8cd;
+  --cal-surface: #101b30;
+}
+.dark .bg-slate-200\/25 { background-color: rgba(36, 54, 86, 0.3); }
+.dark .bg-slate-200\/15 { background-color: rgba(36, 54, 86, 0.18); }
+.dark .bg-amber-100\/35 { background-color: rgba(120, 86, 16, 0.32); }
+.dark .hover\:bg-amber-100\/30:hover { background-color: rgba(120, 86, 16, 0.26); }
+.dark .active\:bg-amber-50\/60:active { background-color: rgba(51, 38, 12, 0.6); }
+:root {
+  --tone-attended-fill: #d1fae5;
+  --tone-attended-edge: #6ee7b7;
+  --tone-attended-ink: #065f46;
+  --tone-noshow-fill: #ffe4e6;
+  --tone-noshow-edge: #fda4af;
+  --tone-noshow-ink: #9f1239;
+  --tone-pending-fill: #f1f5f9;
+  --tone-pending-edge: #cbd5e1;
+  --tone-pending-ink: #334155;
+}
+.dark {
+  --tone-attended-fill: #123a2a;
+  --tone-attended-edge: #27765a;
+  --tone-attended-ink: #a7f3d0;
+  --tone-noshow-fill: #451927;
+  --tone-noshow-edge: #8f3651;
+  --tone-noshow-ink: #fecdd3;
+  --tone-pending-fill: #18263d;
+  --tone-pending-edge: #405677;
+  --tone-pending-ink: #d7e0ee;
+}
+
+/* ── Night sweep round 2: every remaining light-surface / dark-ink utility the
+      audit found in use. The list is generated by diffing the classes the code
+      actually uses against this file — not by eye. ── */
+.dark .bg-amber-200\/25 { background-color: rgba(120, 86, 16, 0.25); }
+.dark .bg-amber-50\/50 { background-color: rgba(51, 38, 12, 0.5); }
+.dark .bg-amber-50\/70 { background-color: rgba(51, 38, 12, 0.7); }
+.dark .bg-green-50\/60 { background-color: rgba(13, 43, 29, 0.6); }
+.dark .bg-green-50\/95 { background-color: rgba(13, 43, 29, 0.95); }
+.dark .bg-indigo-100\/50 { background-color: rgba(38, 46, 94, 0.5); }
+.dark .bg-red-50\/95 { background-color: rgba(53, 19, 31, 0.95); }
+.dark .bg-sky-100 { background-color: #12314e; }
+.dark .bg-sky-50\/60 { background-color: rgba(12, 36, 58, 0.6); }
+.dark .border-green-100 { border-color: #16402c; }
+.dark .border-red-100 { border-color: #4a1c2b; }
+.dark .border-sky-100 { border-color: #1b3a5c; }
+.dark .hover\:bg-amber-100:hover { background-color: #443310; }
+.dark .hover\:bg-green-100:hover { background-color: #123a27; }
+.dark .hover\:bg-green-200:hover { background-color: #175033; }
+.dark .hover\:bg-green-50:hover { background-color: #0d2b1d; }
+.dark .hover\:bg-red-100:hover { background-color: #48192a; }
+.dark .hover\:bg-red-50:hover { background-color: #35131f; }
+.dark .hover\:bg-slate-50\/70:hover { background-color: rgba(13, 23, 41, 0.7); }
+.dark .hover\:border-slate-200:hover { border-color: #243352; }
+.dark .hover\:border-slate-300:hover { border-color: #2d4166; }
+.dark .hover\:text-amber-600:hover { color: #fbbf24; }
+.dark .hover\:text-amber-700:hover { color: #fcd34d; }
+.dark .hover\:text-green-600:hover { color: #4ade80; }
+.dark .hover\:text-green-700:hover { color: #6ee7a7; }
+.dark .hover\:text-indigo-800:hover { color: #c7d2fe; }
+.dark .hover\:text-red-600:hover { color: #f87171; }
+.dark .hover\:text-red-500:hover { color: #f87171; }
+.dark .hover\:text-slate-700:hover { color: #cbd7e8; }
+.dark .hover\:text-slate-800:hover { color: #e2e9f4; }
+.dark .hover\:text-slate-600:hover { color: #b3c2d9; }
+.dark .ring-amber-200 { --tw-ring-color: #5a4310; }
+.dark .ring-green-200 { --tw-ring-color: #1d4a33; }
+.dark .ring-red-200 { --tw-ring-color: #5b2233; }
+.dark .text-amber-600 { color: #fbbf24; }
+.dark .text-amber-600\/90 { color: rgba(251, 191, 36, 0.9); }
+.dark .text-amber-700\/80 { color: rgba(252, 211, 77, 0.85); }
+.dark .text-amber-800\/80 { color: rgba(253, 230, 138, 0.85); }
+.dark .text-blue-600 { color: #60a5fa; }
+.dark .text-indigo-600 { color: #818cf8; }
+.dark .text-red-800 { color: #fda4af; }
+.dark .text-sky-600 { color: #38bdf8; }
+.dark .text-sky-700 { color: #7dd3fc; }
+.dark .bg-slate-50\/70 { background-color: rgba(26, 39, 64, 0.7); }
+.dark .border-slate-50 { border-color: #16223a; }
+.dark .hover\:bg-green-50\/60:hover { background-color: rgba(13, 43, 29, 0.6); }
+.dark .hover\:bg-slate-200:hover { background-color: #243656; }
+.dark .hover\:bg-amber-50\/60:hover { background-color: rgba(63, 48, 16, 0.45); }

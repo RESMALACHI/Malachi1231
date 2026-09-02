@@ -1,0 +1,31 @@
+{
+  "manifest_version": 3,
+  "name": "R.E.S ← מערכת הפגישות",
+  "version": "1.40.0",
+  "description": "ממלא ב-BMBY פגישות מתוך מערכת הפגישות של מכללת R.E.S — הקלדה אחת במקום שתיים.",
+  "permissions": ["storage"],
+  "host_permissions": [
+    "https://uhmzdhtjabhbcyslovfk.supabase.co/*",
+    "https://res-meetings.vercel.app/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": ["https://*.bmby.com/*"],
+      "js": [
+        "shared.js",
+        "meetings.js",
+        "dictate.js",
+        "boot.js"
+      ],
+      "run_at": "document_idle",
+      "all_frames": true
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["fonts/*.woff2"],
+      "matches": ["https://*.bmby.com/*"]
+    }
+  ],
+  "options_page": "options.html"
+}
