@@ -334,6 +334,27 @@ export async function updateMeetingType(meetingId, type) {
 }
 
 /**
+ * Every agent's meetings BOOKED within a month — matched on event_created_at
+ * (the moment the event was created in Google Calendar), not meeting_date.
+ *
+ * This is a different set from getAllMeetingsForMonth: a meeting booked in June
+ * for a July slot belongs to June here and to July there. Used by the manager
+ * leaderboard's "average bookings per day", which is about the act of setting
+ * appointments, not about which month they land in.
+ */
+export async function getMeetingsBookedInMonth(year, month) {
+  const { timeMin, timeMax } = monthRange(year, month)
+  const { data, error } = await supabase
+    .from('meetings')
+    .select('agent_name, event_created_at')
+    .gte('event_created_at', timeMin)
+    .lt('event_created_at', timeMax)
+
+  if (error) throw error
+  return data || []
+}
+
+/**
  * All meetings in a month (across agent_names) for the admin summary.
  * RLS still scopes to what the caller is allowed to read.
  */

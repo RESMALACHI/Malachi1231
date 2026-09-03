@@ -35,10 +35,17 @@ import Leaderboard from '../components/Leaderboard'
 import MonthComparison from '../components/MonthComparison'
 import BonusCard from '../components/BonusCard'
 import DealsPanel from '../components/DealsPanel'
-import { currentMonth, monthLabel, formatDay, formatTime } from '../lib/dateUtils'
+import {
+  currentMonth,
+  monthLabel,
+  formatDay,
+  formatTime,
+  workingDaysElapsedInMonth,
+} from '../lib/dateUtils'
 import {
   getMonthlyMeetings,
   getAllMeetingsForMonth,
+  getMeetingsBookedInMonth,
   computeKpis,
   formatRate,
 } from '../services/meetingsService'
@@ -227,6 +234,7 @@ export default function ReportsPage() {
   }, [urlTab])
   const [meetings, setMeetings] = useState([])
   const [prevMeetings, setPrevMeetings] = useState([]) // last month, manager only
+  const [bookedThisMonth, setBookedThisMonth] = useState([]) // by event_created_at, manager only
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [exporting, setExporting] = useState(false)
@@ -255,15 +263,19 @@ export default function ReportsPage() {
         : await getMonthlyMeetings(selectedAgent, year, month)
       setMeetings(data)
 
-      // Last month, for the manager's comparison only — an agent's report never
-      // shows it, so there is no reason to make them wait for a second query.
+      // Last month (for the comparison) + this month's bookings by creation date
+      // (for the per-agent daily average) — manager only, so an agent's report
+      // never waits on the extra queries.
       if (isManager) {
-        const before = (await getAllMeetingsForMonth(prev.year, prev.month)).filter((m) =>
-          REAL_AGENTS.includes(m.agent_name)
-        )
-        setPrevMeetings(before)
+        const [before, booked] = await Promise.all([
+          getAllMeetingsForMonth(prev.year, prev.month),
+          getMeetingsBookedInMonth(year, month),
+        ])
+        setPrevMeetings(before.filter((m) => REAL_AGENTS.includes(m.agent_name)))
+        setBookedThisMonth(booked.filter((m) => REAL_AGENTS.includes(m.agent_name)))
       } else {
         setPrevMeetings([])
+        setBookedThisMonth([])
       }
     } catch (err) {
       setError(err.message || 'שגיאה בטעינת הנתונים')
@@ -286,8 +298,19 @@ export default function ReportsPage() {
       if (!REAL_AGENTS.includes(m.agent_name)) continue
       byName.set(m.agent_name, [...(byName.get(m.agent_name) || []), m])
     }
+
+    // How many meetings each agent BOOKED this month (by creation date), so the
+    // daily average measures the work of setting appointments — not how many
+    // happen to fall in the month.
+    const bookedByName = new Map()
+    for (const m of bookedThisMonth) {
+      bookedByName.set(m.agent_name, (bookedByName.get(m.agent_name) || 0) + 1)
+    }
+    const days = workingDaysElapsedInMonth(year, month)
+
     return REAL_AGENTS.map((name) => {
       const k = computeKpis(byName.get(name) || [])
+      const booked = bookedByName.get(name) || 0
       return {
         name,
         total: k.total,
@@ -295,9 +318,11 @@ export default function ReportsPage() {
         pending: k.pending,
         decided: k.decided,
         attendanceRate: k.attendanceRate,
+        bookedThisMonth: booked,
+        avgPerDay: days > 0 ? booked / days : null,
       }
     }).sort((a, b) => b.total - a.total)
-  }, [isManager, meetings])
+  }, [isManager, meetings, bookedThisMonth, year, month])
 
   // Only meetings marked as attended, chronological — listed in the image.
   const exportMeetings = useMemo(

@@ -29,6 +29,28 @@ export function monthLabel(year, month) {
   return `${HEBREW_MONTHS[month]} ${year}`
 }
 
+/**
+ * Working days (Sun–Thu, the Israeli work week) that have actually happened in a
+ * month — the whole month for a past month, up to today for the current one.
+ *
+ * The honest denominator for a "meetings per day" average: dividing by 30 would
+ * show every agent at two-thirds their real rate, and dividing the current
+ * month by its full length would make a slow start look like a slow month.
+ * Fridays and Saturdays are excluded because almost nothing is booked on them.
+ */
+export function workingDaysElapsedInMonth(year, month) {
+  const now = new Date()
+  const isCurrent = now.getFullYear() === year && now.getMonth() === month
+  const lastDay = isCurrent ? now.getDate() : new Date(year, month + 1, 0).getDate()
+
+  let count = 0
+  for (let d = 1; d <= lastDay; d++) {
+    const weekday = new Date(year, month, d).getDay() // 0=Sun … 6=Sat
+    if (weekday !== 5 && weekday !== 6) count++
+  }
+  return Math.max(1, count)
+}
+
 /** Midnight-to-midnight ISO bounds for one calendar day (local time). */
 export function dayRange(d) {
   const start = new Date(d.getFullYear(), d.getMonth(), d.getDate())
