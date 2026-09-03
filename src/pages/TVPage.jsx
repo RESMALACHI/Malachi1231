@@ -231,8 +231,8 @@ export default function TVPage() {
       )}
 
       {/* ── header ── */}
-      <header className="relative z-20 flex items-center justify-between gap-4 px-6 pt-6 sm:px-10">
-        <div className="flex items-center gap-2">
+      <header className="relative z-20 flex items-center justify-between gap-3 px-4 pt-3 sm:px-10 sm:pt-6">
+        <div className="flex items-center gap-1.5 sm:gap-2">
           <TVBtn onClick={() => navigate('/')} title="יציאה">
             <X className="h-5 w-5" aria-hidden="true" />
           </TVBtn>
@@ -244,26 +244,28 @@ export default function TVPage() {
           </TVBtn>
           <button
             onClick={toggleSound}
-            className={`flex items-center gap-2 rounded-2xl border px-4 py-2.5 text-sm font-bold transition active:scale-95 ${
+            className={`flex items-center gap-2 rounded-xl border px-2.5 py-2 text-sm font-bold transition active:scale-95 sm:rounded-2xl sm:px-4 sm:py-2.5 ${
               soundOn
                 ? 'border-amber-300/40 bg-amber-400/15 text-amber-200'
                 : 'border-white/10 bg-white/5 text-slate-300 hover:bg-white/10'
             }`}
           >
             {soundOn ? <Volume2 className="h-5 w-5" aria-hidden="true" /> : <VolumeX className="h-5 w-5" aria-hidden="true" />}
-            {soundOn ? 'צלילים פעילים' : 'הפעל צלילים'}
+            <span className="hidden sm:inline">{soundOn ? 'צלילים פעילים' : 'הפעל צלילים'}</span>
           </button>
         </div>
 
-        <div className="flex flex-col items-center text-center">
-          <span className="text-xs font-black tracking-[0.5em] text-amber-400">RES LIVE</span>
-          <h1 className="mt-1 text-2xl font-black tracking-tight sm:text-3xl xl:text-4xl">
+        <div className="flex min-w-0 flex-col items-center text-center">
+          <span className="text-[10px] font-black tracking-[0.35em] text-amber-400 sm:text-xs sm:tracking-[0.5em]">
+            RES LIVE
+          </span>
+          <h1 className="mt-0.5 truncate text-lg font-black tracking-tight sm:mt-1 sm:text-3xl xl:text-4xl">
             חוגגים הצלחות בזמן אמת
           </h1>
         </div>
 
         <div className="flex items-center gap-3">
-          <span className="hidden items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3.5 py-1.5 text-xs font-bold text-slate-300 sm:flex">
+          <span className="hidden items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3.5 py-1.5 text-xs font-bold text-slate-300 xl:flex">
             <Radio className="h-4 w-4 text-emerald-400" aria-hidden="true" />
             מעודכן מהיומן
             <span className="relative flex h-2 w-2">
@@ -271,13 +273,13 @@ export default function TVPage() {
               <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-400" />
             </span>
           </span>
-          <LogoMark className="h-11 w-11" rounded="rounded-2xl" />
+          <LogoMark className="h-9 w-9 sm:h-11 sm:w-11" rounded="rounded-2xl" />
         </div>
       </header>
 
       {/* ── mode tabs + rotation timer ── */}
-      <div className="relative z-20 mt-4 flex flex-col items-center gap-2 px-6 sm:px-10">
-        <div className="flex gap-2 rounded-2xl border border-white/10 bg-white/5 p-1.5">
+      <div className="relative z-20 mt-2 flex flex-col items-center gap-1.5 px-4 sm:mt-4 sm:gap-2 sm:px-10">
+        <div className="flex gap-1.5 rounded-xl border border-white/10 bg-white/5 p-1 sm:gap-2 sm:rounded-2xl sm:p-1.5">
           {MODES.map((m, i) => {
             const Icon = m.icon
             const on = i === modeIdx
@@ -285,7 +287,7 @@ export default function TVPage() {
               <button
                 key={m.key}
                 onClick={() => setModeIdx(i)}
-                className={`flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-black transition ${
+                className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-black transition sm:gap-2 sm:rounded-xl sm:px-4 sm:py-2 sm:text-sm ${
                   on
                     ? 'bg-gradient-to-l from-amber-500 to-yellow-400 text-slate-900 shadow-lg shadow-amber-500/25'
                     : 'text-slate-300 hover:bg-white/10'
@@ -297,7 +299,7 @@ export default function TVPage() {
             )
           })}
         </div>
-        <div className="h-0.5 w-40 overflow-hidden rounded-full bg-white/10">
+        <div className="h-0.5 w-32 overflow-hidden rounded-full bg-white/10 sm:w-40">
           <div
             key={`${modeIdx}-${paused}`}
             className="tv-progress h-full rounded-full bg-amber-400/70"
@@ -307,7 +309,7 @@ export default function TVPage() {
       </div>
 
       {/* ── the rotating view ── */}
-      <main className="relative z-20 flex min-h-0 flex-1 flex-col px-6 pb-3 pt-5 sm:px-10">
+      <main className="relative z-20 flex min-h-0 flex-1 flex-col px-4 pb-2 pt-3 sm:px-10 sm:pb-3 sm:pt-5">
         <div key={mode} className="tv-rise flex min-h-0 flex-1 flex-col">
           {mode === 'today' && (
             <BoardView board={boards.today} scope="today" celebrating={celebrating} flash={flash} pace={pace} />
@@ -322,9 +324,10 @@ export default function TVPage() {
       </main>
 
       {/* ── footer ── */}
-      <footer className="relative z-20 flex items-center justify-between px-6 pb-6 text-xs font-bold text-slate-400 sm:px-10">
-        <span>כל הצלחה נספרת</span>
-        <span className="text-3xl font-black tabular-nums tracking-widest text-white sm:text-4xl">
+      <footer className="relative z-20 flex items-center justify-between px-4 pb-3 text-[11px] font-bold text-slate-400 sm:px-10 sm:pb-5 sm:text-xs">
+        <span className="hidden sm:inline">כל הצלחה נספרת</span>
+        <span className="w-24 sm:hidden" />
+        <span className="text-2xl font-black tabular-nums tracking-widest text-white sm:text-4xl">
           {clock}
         </span>
         <span className="flex items-center gap-2">
@@ -347,7 +350,7 @@ function TVBtn({ onClick, title, active, children }) {
     <button
       onClick={onClick}
       title={title}
-      className={`flex h-11 w-11 items-center justify-center rounded-2xl border transition active:scale-95 ${
+      className={`flex h-10 w-10 items-center justify-center rounded-xl border transition active:scale-95 sm:h-11 sm:w-11 sm:rounded-2xl ${
         active
           ? 'border-amber-300/40 bg-amber-400/15 text-amber-200'
           : 'border-white/10 bg-white/5 text-slate-300 hover:bg-white/10 hover:text-white'
