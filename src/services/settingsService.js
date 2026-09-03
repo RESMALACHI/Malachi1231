@@ -48,6 +48,33 @@ export async function saveSpeech(byLang) {
   if (error) throw error
 }
 
+/**
+ * Team targets. Currently one number: how many meetings a day each agent is
+ * expected to book. Shared, so "the goal" means the same thing to everyone.
+ */
+export async function getGoals() {
+  const { data, error } = await supabase
+    .from('app_settings')
+    .select('value')
+    .eq('key', 'goals')
+    .maybeSingle()
+
+  if (error) throw error
+  const n = Number(data?.value?.dailyBookings)
+  return { dailyBookings: Number.isFinite(n) && n > 0 ? Math.round(n) : null }
+}
+
+export async function saveGoals(goals) {
+  const { error } = await supabase
+    .from('app_settings')
+    .upsert(
+      { key: 'goals', value: goals, updated_at: new Date().toISOString() },
+      { onConflict: 'key' }
+    )
+
+  if (error) throw error
+}
+
 /** Persist the hidden-pages list (shared across all users). */
 export async function saveHiddenPages(hidden) {
   const { error } = await supabase

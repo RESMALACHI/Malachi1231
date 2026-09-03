@@ -334,6 +334,35 @@ export async function updateMeetingType(meetingId, type) {
 }
 
 /**
+ * One agent's bookings per calendar day over the last `days` days, keyed
+ * YYYY-MM-DD in local time — what the daily goal and its streak are counted
+ * from. Measured on event_created_at (when the event was created in Google
+ * Calendar), the same "booked" this app uses everywhere else.
+ */
+export async function getBookingsByDay(agentName, days = 60) {
+  const from = new Date()
+  from.setHours(0, 0, 0, 0)
+  from.setDate(from.getDate() - days)
+
+  const { data, error } = await supabase
+    .from('meetings')
+    .select('event_created_at')
+    .eq('agent_name', agentName)
+    .gte('event_created_at', from.toISOString())
+
+  if (error) throw error
+
+  const pad = (n) => String(n).padStart(2, '0')
+  const byDay = {}
+  for (const row of data || []) {
+    const d = new Date(row.event_created_at)
+    const key = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+    byDay[key] = (byDay[key] || 0) + 1
+  }
+  return byDay
+}
+
+/**
  * Every agent's meetings BOOKED within a month — matched on event_created_at
  * (the moment the event was created in Google Calendar), not meeting_date.
  *

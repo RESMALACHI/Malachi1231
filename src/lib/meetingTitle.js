@@ -22,6 +22,22 @@ const CANCELLED = word('בוטל|בוטלה|מבוטל|מבוטלת')
 const NO_ANSWER = /ללא מענה|לא ענה|אין מענה|לא עונה/u
 
 /**
+ * What the calendar TITLE says about the client's intent, ignoring any outcome
+ * that was later recorded: 'confirmed' | 'cancelled' | 'no_answer' | 'none'.
+ *
+ * Separate from meetingState because the no-show model needs to read the title's
+ * signal on meetings that already have an outcome — that is exactly the pairing
+ * it learns from.
+ */
+export function titleSignal(rawTitle) {
+  const raw = String(rawTitle || '')
+  if (CANCELLED.test(raw)) return 'cancelled'
+  if (CONFIRMED.test(raw)) return 'confirmed'
+  if (NO_ANSWER.test(raw)) return 'no_answer'
+  return 'none'
+}
+
+/**
  * The state of a meeting, for a badge.
  *
  * A recorded outcome always beats a note in the title. "אישר" means the client
@@ -31,11 +47,7 @@ const NO_ANSWER = /ללא מענה|לא ענה|אין מענה|לא עונה/u
 export function meetingState(m) {
   if (m?.status === 'attended') return 'attended'
   if (m?.status === 'no_show') return 'no_show'
-  const raw = m?.title || ''
-  if (CANCELLED.test(raw)) return 'cancelled'
-  if (CONFIRMED.test(raw)) return 'confirmed'
-  if (NO_ANSWER.test(raw)) return 'no_answer'
-  return 'none'
+  return titleSignal(m?.title)
 }
 
 export const STATE_BADGE = {

@@ -22,7 +22,9 @@ import { formatFullDay, formatTime, formatDay } from '../lib/dateUtils'
 import { cleanDescription } from '../lib/cleanText'
 import { clientPhone, clientName, meetingState, STATE_BADGE } from '../lib/meetingTitle'
 import { getClientHistory } from '../services/meetingsService'
+import { getNoShowModel, scoreMeeting, isUpcoming } from '../services/riskService'
 import AiWhatsAppComposer from './AiWhatsAppComposer'
+import RiskBadge from './RiskBadge'
 
 // Kept as a reversible feature flag: the user currently wants the focused AI
 // composer only, without the older green quick-template WhatsApp button.
@@ -223,6 +225,23 @@ export default function MeetingDetailModal({
     }
   }, [onClose])
 
+  // The no-show read, spelled out with its reasons. Only for a meeting still
+  // ahead of us — after the fact there is an outcome, which beats a forecast.
+  const [risk, setRisk] = useState(null)
+  useEffect(() => {
+    let alive = true
+    if (!meeting || !isUpcoming(meeting)) {
+      setRisk(null)
+      return undefined
+    }
+    getNoShowModel()
+      .then((model) => alive && setRisk(scoreMeeting(model, meeting)))
+      .catch(() => {})
+    return () => {
+      alive = false
+    }
+  }, [meeting])
+
   if (!meeting) return null
 
   return createPortal(
@@ -252,6 +271,9 @@ export default function MeetingDetailModal({
         </div>
 
         <div className="flex flex-col gap-5 overflow-y-auto p-5">
+          {/* What the office's own history says about this one showing up. */}
+          <RiskBadge risk={risk} showReasons />
+
           {/* Date / location / description */}
           <div className="flex flex-col gap-3 text-sm">
             <div className="flex items-center gap-2 text-slate-700">

@@ -21,6 +21,9 @@ import { detectBranch, toWaNumber } from '../lib/waTemplates'
 import { updateMeetingStatus } from '../services/meetingsService'
 import { setActivityDone, setLeadHandled } from '../services/leadsService'
 import { getTodayBundle } from '../services/todayService'
+import { getNoShowModel, scoreMeeting, isUpcoming } from '../services/riskService'
+import GoalCard from '../components/GoalCard'
+import RiskBadge from '../components/RiskBadge'
 import Spinner from '../components/Spinner'
 
 const REFRESH_MS = 60_000
@@ -72,6 +75,19 @@ export default function TodayPage() {
   const [data, setData] = useState(null)
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
+  // Built once from the office's own settled meetings; null until it loads, and
+  // null forever if there isn't enough history — the badges just don't appear.
+  const [riskModel, setRiskModel] = useState(null)
+
+  useEffect(() => {
+    let alive = true
+    getNoShowModel()
+      .then((m) => alive && setRiskModel(m))
+      .catch(() => {})
+    return () => {
+      alive = false
+    }
+  }, [])
 
   const load = useCallback(
     async ({ background = false } = {}) => {
@@ -157,6 +173,9 @@ export default function TodayPage() {
         </div>
       </header>
 
+      {/* A manager looking at everyone has no personal target to hit. */}
+      {!viewAll && <GoalCard agentName={selectedAgent} />}
+
       {/* The two planner panels: meetings (start = right in RTL), tasks */}
       <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-2">
         {/* ── פגישות ── */}
@@ -184,7 +203,13 @@ export default function TodayPage() {
             <Empty text="אין פגישות ביומן היום." />
           ) : (
             todayMeetings.map((m) => (
-              <MeetingRow key={m.id} m={m} viewAll={viewAll} onMark={mark} />
+              <MeetingRow
+                key={m.id}
+                m={m}
+                viewAll={viewAll}
+                onMark={mark}
+                risk={isUpcoming(m) ? scoreMeeting(riskModel, m) : null}
+              />
             ))
           )}
 
@@ -192,7 +217,14 @@ export default function TodayPage() {
             <div key={g.key}>
               <SectionHead label={`פגישות ${g.label}`} italic />
               {g.items.map((m) => (
-                <MeetingRow key={m.id} m={m} viewAll={viewAll} onMark={mark} future />
+                <MeetingRow
+                  key={m.id}
+                  m={m}
+                  viewAll={viewAll}
+                  onMark={mark}
+                  future
+                  risk={isUpcoming(m) ? scoreMeeting(riskModel, m) : null}
+                />
               ))}
             </div>
           ))}
@@ -358,7 +390,7 @@ function Empty({ text }) {
  * the type in words, the client, the story line, the phone — and the outcome
  * buttons, which BMBY's checkbox only wishes it was.
  */
-function MeetingRow({ m, viewAll, onMark, overdue = false, future = false }) {
+function MeetingRow({ m, viewAll, onMark, overdue = false, future = false, risk = null }) {
   const phone = clientPhone(m)
   const name = clientName(m.title, m.agent_name)
   const story = snippet(m)
@@ -383,10 +415,11 @@ function MeetingRow({ m, viewAll, onMark, overdue = false, future = false }) {
       </span>
 
       <div className="min-w-0 flex-1">
-        <p className="flex flex-wrap items-baseline gap-x-2 text-sm">
+        <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
           <b className="text-slate-900">{typeLabel(m)}</b>
           <span className="font-semibold text-slate-700">{name}</span>
           {viewAll && <span className="text-[11px] text-indigo-600">{m.agent_name}</span>}
+          <RiskBadge risk={risk} />
         </p>
         {story && <p className="mt-0.5 truncate text-xs text-slate-500">{story}</p>}
         {phone && (
