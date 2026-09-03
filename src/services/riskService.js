@@ -64,7 +64,12 @@ const FACTORS = [
     key: 'signal',
     of: signalOf,
     label: (v) =>
-      v === 'confirmed' ? 'הלקוח אישר' : v === 'no_answer' ? 'לא היה מענה בתיאום' : null,
+      ({
+        confirmed: 'הלקוח אישר הגעה',
+        no_answer: 'לא היה מענה בתיאום',
+        cancelled: 'סומנה כבוטלה בכותרת',
+        none: 'טרם אושרה מול הלקוח',
+      })[v] || null,
   },
   {
     key: 'lead',
@@ -144,7 +149,16 @@ export async function getNoShowModel({ force = false } = {}) {
     }
     factors[f.key] = Object.fromEntries(
       [...tally.entries()]
-        .filter(([, t]) => t.n >= MIN_SAMPLES)
+        .filter(([, t]) => {
+          if (t.n < MIN_SAMPLES) return false
+          // Keep a value only if its no-show rate is genuinely apart from the
+          // office's base — both by a visible margin and beyond sampling noise.
+          // A factor whose buckets all sit at the base rate carries no signal;
+          // letting it through only drags every score back to the middle.
+          const rate = t.no / t.n
+          const se = Math.sqrt((base * (1 - base)) / t.n)
+          return Math.abs(rate - base) >= Math.max(0.07, 1.5 * se)
+        })
         .map(([v, t]) => [v, { rate: t.no / t.n, n: t.n }])
     )
   }
@@ -173,19 +187,26 @@ export function scoreMeeting(model, meeting) {
   }
   if (hits.length === 0) return null
 
-  // Weighted by √n: a factor measured on 400 meetings should outweigh one
-  // measured on 30, without letting it drown the rest out entirely.
-  let num = 0
-  let den = 0
+  // Combine the factors as independent likelihood ratios on the ODDS of a
+  // no-show, starting from the office's base rate. A factor sitting near the
+  // base contributes a ratio near 1 and barely moves the result; "הלקוח אישר"
+  // (25% against a ~57% base) and "ללא מענה" (89%) move it hard. An averaging
+  // scheme instead let the flat, ever-present factors pull every score back to
+  // the base and nothing ever crossed the line. The exponent tempers the
+  // double-counting you get when the factors aren't perfectly independent.
+  const clamp = (p) => Math.min(0.97, Math.max(0.03, p))
+  const baseOdds = model.base / (1 - model.base)
+  const DAMP = 0.8
+  let odds = baseOdds
   for (const h of hits) {
-    const w = Math.sqrt(h.n)
-    num += h.rate * w
-    den += w
+    const p = clamp(h.rate)
+    const lr = p / (1 - p) / baseOdds
+    odds *= lr ** DAMP
   }
-  const rate = num / den
+  const rate = odds / (1 + odds)
 
   // Buckets relative to the office's own base rate — "high" means high *here*.
-  const level = rate >= model.base * 1.25 ? 'high' : rate <= model.base * 0.75 ? 'low' : 'normal'
+  const level = rate >= model.base * 1.3 ? 'high' : rate <= model.base * 0.75 ? 'low' : 'normal'
 
   // The reasons are the factors that pull hardest in the direction we landed.
   const reasons = hits
