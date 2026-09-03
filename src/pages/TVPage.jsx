@@ -369,24 +369,33 @@ export default function TVPage() {
                   )}
                 </div>
 
-                <p className="mt-6 text-lg font-bold text-slate-300 sm:text-2xl">
+                <p className="mt-8 text-xl font-bold text-slate-300 sm:text-2xl xl:text-3xl">
                   {hero.kind === 'deal' ? 'עסקה נסגרה 🎉' : 'נקבעה פגישה חדשה'}
                 </p>
-                <p className="mt-1 text-5xl font-black leading-[1.05] tracking-tight sm:text-6xl xl:text-7xl 2xl:text-8xl">
+                <p className="mt-2 line-clamp-2 text-6xl font-black leading-[0.98] tracking-tight sm:text-7xl xl:text-8xl 2xl:text-9xl">
                   {displayName(hero)}
                 </p>
-                <p className="mt-4 text-xl font-bold text-slate-300 sm:text-2xl">
-                  {hero.agent || '—'}
-                  {hero.kind === 'meeting' && hero.when && (
-                    <span className="text-amber-300"> · {hhmm(hero.when)}</span>
-                  )}
-                  {hero.kind === 'deal' && hero.amount > 0 && (
-                    <span className="text-emerald-300"> · {shekels(hero.amount)}</span>
-                  )}
-                </p>
 
-                <div className="pointer-events-none absolute -left-6 -top-6 opacity-10 sm:opacity-20">
-                  <CalendarPlus className="h-40 w-40" aria-hidden="true" strokeWidth={1.25} />
+                <div className="mt-8 flex items-center gap-4">
+                  <span
+                    className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl text-xl font-black text-[#0a1327] xl:h-16 xl:w-16"
+                    style={{ background: agentColor(hero.agent) }}
+                  >
+                    {initials(hero.agent)}
+                  </span>
+                  <span className="text-2xl font-bold text-slate-300 sm:text-3xl xl:text-4xl">
+                    {hero.agent || '—'}
+                    {hero.kind === 'meeting' && hero.when && (
+                      <span className="text-amber-300"> · {hhmm(hero.when)}</span>
+                    )}
+                    {hero.kind === 'deal' && hero.amount > 0 && (
+                      <span className="text-emerald-300"> · {shekels(hero.amount)}</span>
+                    )}
+                  </span>
+                </div>
+
+                <div className="pointer-events-none absolute -left-10 -top-10 opacity-[0.07]">
+                  <CalendarPlus className="h-56 w-56" aria-hidden="true" strokeWidth={1} />
                 </div>
               </>
             ) : (
