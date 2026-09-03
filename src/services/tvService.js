@@ -9,6 +9,7 @@
 // distinction meetingsService makes for "booked today".
 
 import { supabase } from '../lib/supabaseClient'
+import { REAL_AGENTS } from '../lib/agents'
 
 const EMPTY = { scope: 'today', booked: [], deals: [], counts: { meetings: 0, deals: 0, revenue: 0 } }
 export const EMPTY_BOARD = EMPTY
@@ -34,17 +35,23 @@ function startOfWeekISO() {
 async function fetchBoard(scope) {
   const since = scope === 'week' ? startOfWeekISO() : startOfTodayISO()
 
+  // Only meetings the sync could pin to a real agent count on the board. The
+  // shared calendars are full of blockers — "איציק תפוס", "לא לקבוע" — that
+  // never match an agent alias and so land with agent_name = null; those are
+  // not bookings and must not inflate the numbers or the leaderboard.
   const [bookedRes, dealsRes] = await Promise.all([
     supabase
       .from('meetings')
       .select('id, agent_name, title, meeting_date, type, event_created_at')
       .gte('event_created_at', since)
+      .in('agent_name', REAL_AGENTS)
       .order('event_created_at', { ascending: false })
       .limit(scope === 'week' ? 500 : 120),
     supabase
       .from('deals')
       .select('id, agent_name, client_name, amount, kind, created_at')
       .gte('created_at', since)
+      .in('agent_name', REAL_AGENTS)
       .order('created_at', { ascending: false })
       .limit(300),
   ])
@@ -92,6 +99,7 @@ export async function getDailyPace(days = 14) {
     .select('id', { count: 'exact', head: true })
     .gte('event_created_at', from.toISOString())
     .lt('event_created_at', midnight().toISOString())
+    .in('agent_name', REAL_AGENTS) // match the board — assigned meetings only
 
   if (error) throw error
   return { avgPerDay: Math.max(0, Math.round((count || 0) / days)) }
