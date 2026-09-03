@@ -171,8 +171,8 @@ export async function getNoShowModel({ force = false } = {}) {
 /* ── scoring one meeting ──────────────────────────────────────────────────── */
 
 /**
- * @returns {{level:'low'|'normal'|'high', rate:number, reasons:string[]}|null}
- *   null when the model can't say anything about this meeting.
+ * @returns {{level:'good'|'ok'|'watch'|'high', rate:number, ratio:number, reasons:string[]}|null}
+ *   null only when there is no model, or nothing about this meeting is readable.
  */
 export function scoreMeeting(model, meeting) {
   if (!model || !meeting) return null
@@ -204,18 +204,30 @@ export function scoreMeeting(model, meeting) {
     odds *= lr ** DAMP
   }
   const rate = odds / (1 + odds)
+  const ratio = rate / model.base
 
-  // Buckets relative to the office's own base rate — "high" means high *here*.
-  const level = rate >= model.base * 1.3 ? 'high' : rate <= model.base * 0.75 ? 'low' : 'normal'
+  // Four bands, all measured against the office's OWN norm — every upcoming
+  // meeting gets a read, not just the outliers:
+  //   good  — a safe bet (clearly better than our average)
+  //   ok    — ordinary for us
+  //   watch — worse than our average, worth a confirmation call
+  //   high  — much worse; the calls to make first
+  const level =
+    ratio >= 1.45 ? 'high' : ratio >= 1.15 ? 'watch' : ratio <= 0.75 ? 'good' : 'ok'
 
-  // The reasons are the factors that pull hardest in the direction we landed.
-  const reasons = hits
-    .filter((h) => h.label && (level === 'low' ? h.rate < model.base : h.rate > model.base))
-    .sort((a, b) => Math.abs(b.rate - model.base) - Math.abs(a.rate - model.base))
-    .slice(0, 2)
-    .map((h) => h.label)
+  // The reasons are the factors pulling hardest in the direction we landed.
+  // "ok" is by definition unremarkable — it carries no reason line.
+  let reasons = []
+  if (level !== 'ok') {
+    const up = level === 'watch' || level === 'high'
+    reasons = hits
+      .filter((h) => h.label && (up ? h.rate > model.base : h.rate < model.base))
+      .sort((a, b) => Math.abs(b.rate - model.base) - Math.abs(a.rate - model.base))
+      .slice(0, 2)
+      .map((h) => h.label)
+  }
 
-  return { level, rate, reasons }
+  return { level, rate, ratio, reasons }
 }
 
 /** Only meetings still ahead of us are worth flagging. */

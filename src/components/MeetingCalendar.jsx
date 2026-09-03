@@ -22,6 +22,15 @@ function dayKey(d) {
   return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`
 }
 
+/** Dot colour + tooltip wording per no-show band (see riskService). */
+const RISK_DOT = { good: '#22c55e', ok: '#94a3b8', watch: '#f59e0b', high: '#ef4444' }
+const RISK_TITLE = {
+  good: 'צפוי להגיע',
+  ok: 'סיכוי הגעה רגיל',
+  watch: 'כדאי לוודא הגעה',
+  high: 'סיכון גבוה לאי-הגעה',
+}
+
 /** How many meeting chips fit a desktop day cell before "+N עוד" takes over. */
 const MAX_CHIPS = 3
 
@@ -134,8 +143,10 @@ export default function MeetingCalendar({
 }) {
   const cells = buildMonthMatrix(year, month)
 
-  const highRisk = (m) =>
-    riskModel && isUpcoming(m) && scoreMeeting(riskModel, m)?.level === 'high'
+  // Every upcoming meeting gets a small coloured dot on its chip; a high-risk
+  // one also gets the amber ring + ⚠ so it stands out in a full month.
+  const riskLevelOf = (m) =>
+    riskModel && isUpcoming(m) ? scoreMeeting(riskModel, m)?.level || null : null
 
   // The meetings of each day, in time order (grid view).
   const listByDay = new Map()
@@ -218,7 +229,8 @@ export default function MeetingCalendar({
                       // The meeting's colour is deliberately flat and direct:
                       // the block reads as a status marker, not a decoration.
                       const tone = toneFor(m)
-                      const atRisk = highRisk(m)
+                      const rlevel = riskLevelOf(m)
+                      const atRisk = rlevel === 'high'
                       return (
                         <button
                           key={m.id}
@@ -228,8 +240,8 @@ export default function MeetingCalendar({
                             else onSelectDay(cell.date)
                           }}
                           title={
-                            atRisk
-                              ? `${m.title || 'פגישה'} — סיכון לאי-הגעה`
+                            rlevel
+                              ? `${m.title || 'פגישה'} — ${RISK_TITLE[rlevel]}`
                               : m.title || undefined
                           }
                           style={{
@@ -239,12 +251,18 @@ export default function MeetingCalendar({
                           className={`${CHIP_BASE} flex w-full items-center gap-1 px-1.5 py-1
                             text-[11px] font-semibold`}
                         >
-                          {atRisk && (
+                          {atRisk ? (
                             <AlertTriangle
                               className="h-3 w-3 shrink-0 text-amber-600"
                               aria-hidden="true"
                             />
-                          )}
+                          ) : rlevel ? (
+                            <span
+                              className="h-1.5 w-1.5 shrink-0 rounded-full"
+                              style={{ background: RISK_DOT[rlevel] }}
+                              aria-hidden="true"
+                            />
+                          ) : null}
                           <span className="shrink-0 tabular-nums">
                             {formatTime(m.meeting_date)}
                           </span>
