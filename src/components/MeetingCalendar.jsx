@@ -1,10 +1,11 @@
-import { ChevronLeft, CalendarDays } from 'lucide-react'
+import { ChevronLeft, CalendarDays, AlertTriangle } from 'lucide-react'
 import {
   WEEKDAYS_FULL,
   WEEKDAYS_SHORT,
   buildMonthMatrix,
   formatTime,
 } from '../lib/dateUtils'
+import { scoreMeeting, isUpcoming } from '../services/riskService'
 import {
   LINE,
   toneFor,
@@ -123,8 +124,18 @@ function MobileAgenda({ year, month, meetings, onSelectDay }) {
  * chips (time + client), like a real calendar — a chip opens the meeting, the
  * day itself opens the full list. Phones get the agenda list above.
  */
-export default function MeetingCalendar({ year, month, meetings, onSelectDay, onSelectMeeting }) {
+export default function MeetingCalendar({
+  year,
+  month,
+  meetings,
+  onSelectDay,
+  onSelectMeeting,
+  riskModel = null,
+}) {
   const cells = buildMonthMatrix(year, month)
+
+  const highRisk = (m) =>
+    riskModel && isUpcoming(m) && scoreMeeting(riskModel, m)?.level === 'high'
 
   // The meetings of each day, in time order (grid view).
   const listByDay = new Map()
@@ -207,6 +218,7 @@ export default function MeetingCalendar({ year, month, meetings, onSelectDay, on
                       // The meeting's colour is deliberately flat and direct:
                       // the block reads as a status marker, not a decoration.
                       const tone = toneFor(m)
+                      const atRisk = highRisk(m)
                       return (
                         <button
                           key={m.id}
@@ -215,11 +227,24 @@ export default function MeetingCalendar({ year, month, meetings, onSelectDay, on
                             if (onSelectMeeting) onSelectMeeting(m)
                             else onSelectDay(cell.date)
                           }}
-                          title={m.title || undefined}
-                          style={solidChip(tone, { radius: 6 })}
+                          title={
+                            atRisk
+                              ? `${m.title || 'פגישה'} — סיכון לאי-הגעה`
+                              : m.title || undefined
+                          }
+                          style={{
+                            ...solidChip(tone, { radius: 6 }),
+                            ...(atRisk ? { boxShadow: 'inset 0 0 0 1.5px #f59e0b' } : null),
+                          }}
                           className={`${CHIP_BASE} flex w-full items-center gap-1 px-1.5 py-1
                             text-[11px] font-semibold`}
                         >
+                          {atRisk && (
+                            <AlertTriangle
+                              className="h-3 w-3 shrink-0 text-amber-600"
+                              aria-hidden="true"
+                            />
+                          )}
                           <span className="shrink-0 tabular-nums">
                             {formatTime(m.meeting_date)}
                           </span>

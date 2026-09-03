@@ -1,6 +1,8 @@
 import { CalendarDays, ChevronLeft } from 'lucide-react'
 import { formatTime, formatFullDay, weekDays, isSameDay, WEEKDAYS_FULL } from '../lib/dateUtils'
+import { scoreMeeting, isUpcoming } from '../services/riskService'
 import { typeIcon } from './MeetingRow'
+import RiskBadge from './RiskBadge'
 
 const STATUS = {
   attended: { label: 'הגיע', cls: 'bg-green-100 text-green-700' },
@@ -11,7 +13,7 @@ const STATUS = {
 const byTime = (a, b) => new Date(a.meeting_date) - new Date(b.meeting_date)
 
 /** One meeting row — the shared unit of both the day and week views. */
-function MeetingLine({ m, showAgent, onPick, index = 0 }) {
+function MeetingLine({ m, showAgent, onPick, index = 0, risk = null }) {
   const Icon = typeIcon(m.type)
   const st = STATUS[m.status] || STATUS.pending
   return (
@@ -27,8 +29,11 @@ function MeetingLine({ m, showAgent, onPick, index = 0 }) {
         <Icon className="h-4 w-4" aria-hidden="true" />
       </span>
       <span className="min-w-0 flex-1">
-        <span className="block truncate font-semibold text-slate-800">
-          {m.title || '(ללא כותרת)'}
+        <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+          <span className="truncate font-semibold text-slate-800">
+            {m.title || '(ללא כותרת)'}
+          </span>
+          <RiskBadge risk={risk} />
         </span>
         {showAgent && m.agent_name && (
           <span className="mt-0.5 block text-xs text-slate-500">{m.agent_name}</span>
@@ -42,6 +47,9 @@ function MeetingLine({ m, showAgent, onPick, index = 0 }) {
   )
 }
 
+/** The risk read for a meeting, or null when it isn't ahead of us / no model. */
+const riskFor = (model, m) => (model && isUpcoming(m) ? scoreMeeting(model, m) : null)
+
 function Empty({ text }) {
   return (
     <div className="flex flex-col items-center gap-2 py-10 text-center">
@@ -52,7 +60,7 @@ function Empty({ text }) {
 }
 
 /** A single day, as a plain ordered list of its meetings. */
-export function DayView({ date, meetings, showAgent, onPick }) {
+export function DayView({ date, meetings, showAgent, onPick, riskModel = null }) {
   const list = meetings.filter((m) => isSameDay(new Date(m.meeting_date), date)).sort(byTime)
   return (
     <div className="card overflow-hidden">
@@ -67,7 +75,14 @@ export function DayView({ date, meetings, showAgent, onPick }) {
       ) : (
         <div className="divide-y divide-slate-100">
           {list.map((m, i) => (
-            <MeetingLine key={m.id} m={m} showAgent={showAgent} onPick={onPick} index={i} />
+            <MeetingLine
+              key={m.id}
+              m={m}
+              showAgent={showAgent}
+              onPick={onPick}
+              index={i}
+              risk={riskFor(riskModel, m)}
+            />
           ))}
         </div>
       )}
@@ -80,7 +95,7 @@ export function DayView({ date, meetings, showAgent, onPick }) {
  * rather than seven columns: meeting titles are long Hebrew strings, and a
  * column ~150px wide truncates every one of them into uselessness.
  */
-export function WeekView({ anchor, meetings, showAgent, onPick }) {
+export function WeekView({ anchor, meetings, showAgent, onPick, riskModel = null }) {
   const days = weekDays(anchor)
   const today = new Date()
 
@@ -120,7 +135,14 @@ export function WeekView({ anchor, meetings, showAgent, onPick }) {
             {list.length > 0 && (
               <div className="divide-y divide-slate-100">
                 {list.map((m, i) => (
-                  <MeetingLine key={m.id} m={m} showAgent={showAgent} onPick={onPick} index={i} />
+                  <MeetingLine
+                    key={m.id}
+                    m={m}
+                    showAgent={showAgent}
+                    onPick={onPick}
+                    index={i}
+                    risk={riskFor(riskModel, m)}
+                  />
                 ))}
               </div>
             )}

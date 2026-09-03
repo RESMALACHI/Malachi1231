@@ -43,6 +43,8 @@ import {
   updateMeetingType,
 } from '../services/meetingsService'
 import { syncMonth, FeedConfigError } from '../services/syncService'
+import { getNoShowModel } from '../services/riskService'
+import GoalCard from '../components/GoalCard'
 import { isAdminAgent, isFieldAgent, isManagerAgent, managerViewOnly, REAL_AGENTS } from '../lib/agents'
 import { STATUS_TONE, solidChip } from '../lib/calendarTheme'
 
@@ -219,6 +221,17 @@ export default function AgentDashboard() {
 
   const syncingRef = useRef(false) // guards against overlapping syncs
   const autoSyncStopped = useRef(false) // pause auto-sync after a reauth prompt
+
+  // The no-show model — built once from the office's own settled meetings, and
+  // null forever if there isn't enough history (the badges just don't appear).
+  const [riskModel, setRiskModel] = useState(null)
+  useEffect(() => {
+    let alive = true
+    getNoShowModel().then((m) => alive && setRiskModel(m)).catch(() => {})
+    return () => {
+      alive = false
+    }
+  }, [])
 
   const firstName = (selectedAgent || '').split(' ')[0] || 'סוכן'
   // Someone who only manages always sees everyone; someone who does both
@@ -562,6 +575,10 @@ export default function AgentDashboard() {
         </div>
       </div>
 
+      {/* The agent's day against their target — hidden in the all-agents view,
+          where there is no single person's goal to show. */}
+      {!isManager && <GoalCard agentName={selectedAgent} />}
+
       {/* Filter · search · count. The search sits to the right of the count
           (first child = rightmost in RTL) and expands in place when opened. */}
       <div className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
@@ -662,6 +679,7 @@ export default function AgentDashboard() {
             date={anchor}
             meetings={meetings}
             showAgent={isManager}
+            riskModel={isManager ? null : riskModel}
             // The manager has no per-meeting editor — send him to the day panel,
             // which is where his per-agent breakdown lives.
             onPick={(m) => (isManager ? setSelectedDate(new Date(m.meeting_date)) : setSelectedMeetingId(m.id))}
@@ -676,6 +694,7 @@ export default function AgentDashboard() {
             anchor={anchor}
             meetings={meetings}
             showAgent={isManager}
+            riskModel={isManager ? null : riskModel}
             onPick={(m) => (isManager ? setSelectedDate(new Date(m.meeting_date)) : setSelectedMeetingId(m.id))}
           />
           <Legend />
@@ -693,6 +712,7 @@ export default function AgentDashboard() {
             year={year}
             month={month}
             meetings={meetings}
+            riskModel={riskModel}
             onSelectDay={setSelectedDate}
             onSelectMeeting={(m) => setSelectedMeetingId(m.id)}
           />
@@ -717,6 +737,7 @@ export default function AgentDashboard() {
         <DayMeetingsModal
           date={selectedDate}
           meetings={dayMeetings}
+          riskModel={riskModel}
           onClose={() => setSelectedDate(null)}
           onStatusChange={handleStatusChange}
           onSelectMeeting={(m) => {

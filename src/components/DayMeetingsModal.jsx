@@ -2,8 +2,10 @@ import { useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { X, ChevronLeft, MoveHorizontal } from 'lucide-react'
 import { typeIcon } from './MeetingRow'
+import RiskBadge from './RiskBadge'
 import SwipeToMark from './SwipeToMark'
 import { formatFullDay, formatTime } from '../lib/dateUtils'
+import { scoreMeeting, isUpcoming } from '../services/riskService'
 
 const STATUS = {
   attended: { label: 'הגיע', dot: 'bg-green-500' },
@@ -21,6 +23,7 @@ export default function DayMeetingsModal({
   onClose,
   onSelectMeeting,
   onStatusChange,
+  riskModel = null,
 }) {
   useEffect(() => {
     const onKey = (e) => e.key === 'Escape' && onClose()
@@ -74,6 +77,7 @@ export default function DayMeetingsModal({
             meetings.map((m, i) => {
               const Icon = typeIcon(m.type)
               const status = STATUS[m.status] || STATUS.pending
+              const risk = riskModel && isUpcoming(m) ? scoreMeeting(riskModel, m) : null
               return (
                 <SwipeToMark
                   key={m.id}
@@ -92,8 +96,11 @@ export default function DayMeetingsModal({
                         <Icon className="h-5 w-5" aria-hidden="true" />
                       </span>
                       <span className="min-w-0 flex-1">
-                        <span className="block truncate font-semibold text-slate-800">
-                          {m.title || '(ללא כותרת)'}
+                        <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                          <span className="truncate font-semibold text-slate-800">
+                            {m.title || '(ללא כותרת)'}
+                          </span>
+                          <RiskBadge risk={risk} />
                         </span>
                         <span className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
                           <span className="tabular-nums">{formatTime(m.meeting_date)}</span>
