@@ -233,6 +233,65 @@
   animation: tv-ring 1.8s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
+/* confetti — a single piece falls the height of the screen while it spins */
+@keyframes tv-confetti {
+  0% { transform: translateY(-12vh) rotate(0); opacity: 0; }
+  8% { opacity: 1; }
+  100% { transform: translateY(112vh) rotate(720deg); opacity: 1; }
+}
+.tv-confetti { animation: tv-confetti linear forwards; }
+
+/* a mode swapping in — rises and settles */
+@keyframes tv-rise {
+  0% { opacity: 0; transform: translateY(28px) scale(0.985); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+.tv-rise { animation: tv-rise 0.55s cubic-bezier(0.22, 1, 0.36, 1) both; }
+
+/* leaderboard bar filling in — from the right (RTL) */
+@keyframes tv-bar {
+  0% { transform: scaleX(0); }
+  100% { transform: scaleX(1); }
+}
+.tv-bar {
+  transform-origin: right;
+  animation: tv-bar 0.9s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* a slow sheen that sweeps the #1 row */
+@keyframes tv-sheen {
+  0% { transform: translateX(120%); }
+  60%, 100% { transform: translateX(-220%); }
+}
+.tv-sheen { animation: tv-sheen 3.4s ease-in-out infinite; }
+
+/* the big milestone banner */
+@keyframes tv-milestone {
+  0% { opacity: 0; transform: scale(0.6) translateY(20px); }
+  15% { opacity: 1; transform: scale(1.06) translateY(0); }
+  25% { transform: scale(1); }
+  85% { opacity: 1; transform: scale(1); }
+  100% { opacity: 0; transform: scale(1.04); }
+}
+.tv-milestone { animation: tv-milestone 6s cubic-bezier(0.22, 1, 0.36, 1) both; }
+
+/* a very slow aurora drift for the background */
+@keyframes tv-aurora {
+  0%, 100% { transform: translate3d(-8%, -4%, 0) rotate(0deg); }
+  50% { transform: translate3d(8%, 6%, 0) rotate(8deg); }
+}
+.tv-aurora { animation: tv-aurora 28s ease-in-out infinite; }
+
+/* the rotation timer under the mode tabs — drains right→left (RTL) */
+@keyframes tv-progress {
+  from { transform: scaleX(1); }
+  to { transform: scaleX(0); }
+}
+.tv-progress {
+  transform-origin: right;
+  animation: tv-progress linear forwards;
+}
+
 /* ── Mobile ergonomics ─────────────────────────────────────────────────── */
 
 /* iOS Safari auto-zooms into any focused input under 16px — the single most

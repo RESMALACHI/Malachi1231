@@ -6,117 +6,101 @@ import {
   Minimize2,
   Volume2,
   VolumeX,
-  CalendarPlus,
-  Handshake,
-  Wallet,
+  Play,
+  Pause,
   Radio,
-  Video,
-  Users,
+  Sun,
+  CalendarRange,
+  Trophy,
 } from 'lucide-react'
 import { LogoMark } from '../components/Logo'
-import AnimatedNumber from '../components/AnimatedNumber'
-import { getTvBoard, mergeFeed } from '../services/tvService'
-import { clientName } from '../lib/meetingTitle'
+import BoardView from '../components/tv/BoardView'
+import LeadersView from '../components/tv/LeadersView'
+import Confetti from '../components/tv/Confetti'
+import MilestoneBanner from '../components/tv/MilestoneBanner'
+import { getTvBoards, getDailyPace, mergeFeed, leaderboardFrom, EMPTY_BOARD } from '../services/tvService'
+import { milestoneCrossed } from '../components/tv/util'
 import { initAudio, playChime } from '../lib/chime'
 
-// How often the board re-reads the database. Short enough that a booking feels
-// live on the wall, long enough that a dozen idle office tabs cost nothing.
-const POLL_MS = 20_000
-// How long the "just happened" glow stays on the hero after a new win lands.
-const CELEBRATE_MS = 7_000
+const POLL_MS = 20_000 // how often the board re-reads the database
+const PACE_MS = 5 * 60_000 // the 14-day average barely moves — refresh it lazily
+const ROTATE_MS = 26_000 // seconds each mode holds the screen
+const CELEBRATE_MS = 7_000 // the "just happened" glow on the hero
+const MILESTONE_MS = 6_500 // the full-screen milestone celebration
 
-/* ── helpers ─────────────────────────────────────────────────────────────── */
-
-/** "הרגע" · "לפני 6 דק׳" · "לפני 3 שע׳" — how long ago, in the office's words. */
-function relativeHe(iso) {
-  if (!iso) return ''
-  const secs = Math.round((Date.now() - new Date(iso).getTime()) / 1000)
-  if (secs < 45) return 'הרגע'
-  const mins = Math.round(secs / 60)
-  if (mins < 60) return `לפני ${mins} דק׳`
-  const hrs = Math.round(mins / 60)
-  return `לפני ${hrs} שע׳`
-}
-
-/** "14:30" from an ISO datetime, Israel-local. */
-function hhmm(iso) {
-  if (!iso) return ''
-  try {
-    return new Intl.DateTimeFormat('he-IL', { hour: '2-digit', minute: '2-digit' }).format(
-      new Date(iso)
-    )
-  } catch {
-    return ''
-  }
-}
-
-/** "₪12,400" */
-const shekels = (n) => `₪${Math.round(Number(n) || 0).toLocaleString('en-US')}`
-
-// A bright, high-contrast hue per agent for the dark board. Stable per name.
-const HUES = ['#fbbf24', '#38bdf8', '#f472b6', '#a78bfa', '#34d399', '#fb923c', '#60a5fa', '#f87171']
-function agentColor(name) {
-  const s = String(name || '')
-  let h = 0
-  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0
-  return HUES[h % HUES.length]
-}
-function initials(name) {
-  const p = String(name || '?').trim().split(/\s+/)
-  return ((p[0]?.[0] || '') + (p[1]?.[0] || '')) || '?'
-}
-
-/** The display name for a feed row / the hero. Meetings carry a messy title. */
-function displayName(item) {
-  if (item.kind === 'deal') return String(item.who || '').trim() || 'לקוח'
-  const cleaned = clientName(item.who, item.agent)
-  return cleaned && cleaned !== '(ללא פרטים)' ? cleaned : String(item.who || 'פגישה חדשה')
-}
-
-/* ── screen ──────────────────────────────────────────────────────────────── */
+const MODES = [
+  { key: 'today', label: 'היום', icon: Sun },
+  { key: 'week', label: 'השבוע', icon: CalendarRange },
+  { key: 'leaders', label: 'המובילים', icon: Trophy },
+]
 
 export default function TVPage() {
   const navigate = useNavigate()
 
-  const [board, setBoard] = useState({ booked: [], deals: [], counts: { meetings: 0, deals: 0, revenue: 0 } })
+  const [boards, setBoards] = useState({ today: EMPTY_BOARD, week: EMPTY_BOARD })
+  const [pace, setPace] = useState(null)
   const [status, setStatus] = useState('loading') // loading | ok | error
+
   const [soundOn, setSoundOn] = useState(false)
   const [fs, setFs] = useState(false)
   const [now, setNow] = useState(() => new Date())
+
+  const [modeIdx, setModeIdx] = useState(0)
+  const [paused, setPaused] = useState(false)
+
   const [celebrateAt, setCelebrateAt] = useState(0)
   const [flash, setFlash] = useState(() => new Set())
+  const [milestone, setMilestone] = useState(null) // { n, at }
 
-  const seenRef = useRef(null) // Set<string> of feed keys already shown
+  const seenRef = useRef(null) // Set<string> of today's feed keys already shown
+  const countRef = useRef(null) // last-seen today meeting count, for milestones
   const soundRef = useRef(false)
   soundRef.current = soundOn
 
-  const feed = useMemo(() => mergeFeed(board), [board])
-  const hero = feed[0] || null
+  const mode = MODES[modeIdx].key
   const celebrating = Date.now() - celebrateAt < CELEBRATE_MS
+  const showMilestone = milestone && Date.now() - milestone.at < MILESTONE_MS
 
-  /* poll the board, and notice anything new since last time */
+  const leaders = useMemo(() => leaderboardFrom(boards.week), [boards.week])
+
+  /* ── poll ── */
   const load = useCallback(async () => {
     try {
-      const data = await getTvBoard()
-      setBoard(data)
+      const data = await getTvBoards()
+      setBoards(data)
       setStatus('ok')
 
-      const keys = mergeFeed(data).map((x) => x.key)
+      // New wins today → celebrate (independent of which mode is on screen).
+      const keys = mergeFeed(data.today).map((x) => x.key)
       if (seenRef.current == null) {
-        // First load: seed silently — the whole day's history isn't "news".
         seenRef.current = new Set(keys)
-        return
+      } else {
+        const fresh = keys.filter((k) => !seenRef.current.has(k))
+        for (const k of keys) seenRef.current.add(k)
+        if (fresh.length) {
+          setFlash(new Set(fresh))
+          setCelebrateAt(Date.now())
+          const top = mergeFeed(data.today).find((x) => fresh.includes(x.key))
+          if (soundRef.current) playChime(top?.kind === 'deal' ? 'deal' : 'meeting')
+        }
       }
-      const fresh = keys.filter((k) => !seenRef.current.has(k))
-      for (const k of keys) seenRef.current.add(k)
-      if (fresh.length) {
-        setFlash(new Set(fresh))
-        setCelebrateAt(Date.now())
-        const top = mergeFeed(data).find((x) => fresh.includes(x.key))
-        if (soundRef.current) playChime(top?.kind === 'deal' ? 'deal' : 'meeting')
+
+      // Milestone on today's meeting count.
+      const n = data.today.counts.meetings
+      if (countRef.current == null) {
+        countRef.current = n
+      } else if (n > countRef.current) {
+        const hit = milestoneCrossed(countRef.current, n)
+        countRef.current = n
+        if (hit) {
+          setMilestone({ n: hit, at: Date.now() })
+          if (soundRef.current) playChime('deal')
+        }
+      } else {
+        countRef.current = n
       }
     } catch {
-      setStatus((s) => (s === 'ok' ? 'ok' : 'error')) // keep showing stale data if we had some
+      setStatus((s) => (s === 'ok' ? 'ok' : 'error'))
     }
   }, [])
 
@@ -128,20 +112,34 @@ export default function TVPage() {
     return () => clearInterval(id)
   }, [load])
 
-  /* the wall clock */
+  useEffect(() => {
+    const run = () => getDailyPace().then(setPace).catch(() => {})
+    run()
+    const id = setInterval(run, PACE_MS)
+    return () => clearInterval(id)
+  }, [])
+
+  /* ── mode rotation — a fresh timer per mode, auto or manual ── */
+  useEffect(() => {
+    if (paused) return
+    const id = setTimeout(() => setModeIdx((i) => (i + 1) % MODES.length), ROTATE_MS)
+    return () => clearTimeout(id)
+  }, [paused, modeIdx])
+
+  /* ── the wall clock ── */
   useEffect(() => {
     const id = setInterval(() => setNow(new Date()), 1000)
     return () => clearInterval(id)
   }, [])
 
-  /* clear the row-flash once the celebration is over */
+  /* ── clear the row-flash once the celebration is over ── */
   useEffect(() => {
     if (!flash.size) return
     const id = setTimeout(() => setFlash(new Set()), CELEBRATE_MS)
     return () => clearTimeout(id)
   }, [flash])
 
-  /* keep the TV awake, and follow the real fullscreen state */
+  /* ── keep the TV awake, follow the real fullscreen state ── */
   useEffect(() => {
     let lock = null
     const acquire = async () => {
@@ -172,21 +170,12 @@ export default function TVPage() {
       setSoundOn(false)
     }
   }
-
   const toggleFs = () => {
     if (document.fullscreenElement) document.exitFullscreen?.()
     else document.documentElement.requestFullscreen?.().catch(() => {})
   }
 
-  const todayLabel = new Intl.DateTimeFormat('he-IL', {
-    weekday: 'long',
-    day: 'numeric',
-    month: 'long',
-  }).format(now)
-  const clock = new Intl.DateTimeFormat('he-IL', {
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(now)
+  const clock = new Intl.DateTimeFormat('he-IL', { hour: '2-digit', minute: '2-digit' }).format(now)
 
   return (
     <div
@@ -204,7 +193,14 @@ export default function TVPage() {
         }}
       />
       <div
-        className="pointer-events-none absolute inset-0 opacity-[0.4]"
+        className="pointer-events-none absolute -inset-1/4 tv-aurora opacity-40"
+        style={{
+          background:
+            'conic-gradient(from 120deg at 50% 50%, transparent, rgba(251,191,36,0.10), transparent 40%, rgba(56,189,248,0.10), transparent 75%)',
+        }}
+      />
+      <div
+        className="pointer-events-none absolute inset-0 opacity-40"
         style={{
           backgroundImage: 'radial-gradient(rgba(255,255,255,0.06) 1px, transparent 1px)',
           backgroundSize: '26px 26px',
@@ -213,10 +209,10 @@ export default function TVPage() {
       <div className="pointer-events-none absolute -right-40 top-1/4 h-[36rem] w-[36rem] rounded-full bg-amber-500/10 blur-3xl animate-blob" />
       <div className="pointer-events-none absolute -left-40 bottom-0 h-[34rem] w-[34rem] rounded-full bg-sky-500/10 blur-3xl animate-blob [animation-delay:6s]" />
 
-      {/* signature brand hairline */}
+      {/* brand hairline */}
       <div className="pointer-events-none absolute inset-x-0 top-0 z-20 h-[3px] bg-gradient-to-l from-amber-600 via-yellow-300 to-amber-500" />
 
-      {/* celebration flash — a quick gold wash, gone in under two seconds */}
+      {/* celebration flash + milestone */}
       {celebrating && (
         <div
           key={celebrateAt}
@@ -227,24 +223,25 @@ export default function TVPage() {
           }}
         />
       )}
+      {showMilestone && (
+        <>
+          <Confetti key={`c-${milestone.at}`} />
+          <MilestoneBanner key={`b-${milestone.at}`} n={milestone.n} />
+        </>
+      )}
 
       {/* ── header ── */}
       <header className="relative z-20 flex items-center justify-between gap-4 px-6 pt-6 sm:px-10">
         <div className="flex items-center gap-2">
-          <button
-            onClick={() => navigate('/')}
-            title="יציאה"
-            className="flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-slate-300 transition hover:bg-white/10 hover:text-white active:scale-95"
-          >
+          <TVBtn onClick={() => navigate('/')} title="יציאה">
             <X className="h-5 w-5" aria-hidden="true" />
-          </button>
-          <button
-            onClick={toggleFs}
-            title={fs ? 'יציאה ממסך מלא' : 'מסך מלא'}
-            className="flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-slate-300 transition hover:bg-white/10 hover:text-white active:scale-95"
-          >
+          </TVBtn>
+          <TVBtn onClick={toggleFs} title={fs ? 'יציאה ממסך מלא' : 'מסך מלא'}>
             {fs ? <Minimize2 className="h-5 w-5" aria-hidden="true" /> : <Maximize2 className="h-5 w-5" aria-hidden="true" />}
-          </button>
+          </TVBtn>
+          <TVBtn onClick={() => setPaused((p) => !p)} title={paused ? 'המשך סבב' : 'עצור סבב'} active={paused}>
+            {paused ? <Play className="h-5 w-5" aria-hidden="true" /> : <Pause className="h-5 w-5" aria-hidden="true" />}
+          </TVBtn>
           <button
             onClick={toggleSound}
             className={`flex items-center gap-2 rounded-2xl border px-4 py-2.5 text-sm font-bold transition active:scale-95 ${
@@ -278,166 +275,50 @@ export default function TVPage() {
         </div>
       </header>
 
-      {/* ── body ── */}
-      <main className="relative z-20 grid min-h-0 flex-1 grid-cols-1 gap-5 px-6 pb-3 pt-6 sm:px-10 lg:grid-cols-[minmax(340px,1fr)_1.5fr]">
-        {/* feed */}
-        <section className="flex min-h-0 flex-col rounded-3xl border border-white/10 bg-white/[0.035] p-5 backdrop-blur-xl">
-          <div className="flex items-baseline justify-between gap-3">
-            <h2 className="text-lg font-black">רצף העדכונים</h2>
-            <span className="shrink-0 whitespace-nowrap text-xs font-semibold text-slate-400">
-              {todayLabel}
-            </span>
-          </div>
-          <div className="mt-4 flex-1 space-y-2.5 overflow-hidden">
-            {feed.length === 0 ? (
-              <p className="pt-10 text-center text-sm text-slate-400">
-                עוד לא נקבעו פגישות היום — הבוקר רק מתחיל ☕
-              </p>
-            ) : (
-              feed.slice(0, 7).map((item, i) => {
-                const c = agentColor(item.agent)
-                const isNew = flash.has(item.key)
-                return (
-                  <div
-                    key={item.key}
-                    style={{ animationDelay: `${Math.min(i, 6) * 40}ms` }}
-                    className={`flex animate-fade-up items-center gap-3 rounded-2xl border p-3 transition ${
-                      isNew
-                        ? 'border-amber-300/40 bg-amber-400/10'
-                        : 'border-white/5 bg-white/[0.03]'
-                    }`}
-                  >
-                    <span
-                      className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-sm font-black text-[#0a1327]"
-                      style={{ background: c }}
-                    >
-                      {initials(item.agent)}
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-[13px] font-semibold text-slate-300">
-                        {item.kind === 'deal' ? 'עסקה נסגרה 🎉' : 'נקבעה פגישה חדשה'}
-                      </p>
-                      <p className="truncate text-base font-black">{displayName(item)}</p>
-                      <p className="truncate text-xs text-slate-400">
-                        {item.agent || '—'}
-                        {item.kind === 'meeting' && item.when ? ` · ${hhmm(item.when)}` : ''}
-                        {item.kind === 'deal' && item.amount ? ` · ${shekels(item.amount)}` : ''}
-                      </p>
-                    </div>
-                    <span className="shrink-0 text-[11px] font-semibold text-slate-400">
-                      {relativeHe(item.at)}
-                    </span>
-                  </div>
-                )
-              })
-            )}
-          </div>
-        </section>
-
-        {/* hero + stats */}
-        <section className="flex min-h-0 flex-col gap-5">
+      {/* ── mode tabs + rotation timer ── */}
+      <div className="relative z-20 mt-4 flex flex-col items-center gap-2 px-6 sm:px-10">
+        <div className="flex gap-2 rounded-2xl border border-white/10 bg-white/5 p-1.5">
+          {MODES.map((m, i) => {
+            const Icon = m.icon
+            const on = i === modeIdx
+            return (
+              <button
+                key={m.key}
+                onClick={() => setModeIdx(i)}
+                className={`flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-black transition ${
+                  on
+                    ? 'bg-gradient-to-l from-amber-500 to-yellow-400 text-slate-900 shadow-lg shadow-amber-500/25'
+                    : 'text-slate-300 hover:bg-white/10'
+                }`}
+              >
+                <Icon className="h-4 w-4" aria-hidden="true" />
+                {m.label}
+              </button>
+            )
+          })}
+        </div>
+        <div className="h-0.5 w-40 overflow-hidden rounded-full bg-white/10">
           <div
-            key={hero ? hero.key + (celebrating ? '-c' : '') : 'empty'}
-            className={`relative flex flex-1 flex-col justify-center overflow-hidden rounded-[2rem] border p-8 backdrop-blur-xl transition-all duration-500 sm:p-12 ${
-              celebrating
-                ? 'animate-pop border-amber-300/60 bg-amber-400/[0.08] shadow-[0_0_120px_-20px_rgba(251,191,36,0.55)]'
-                : 'border-white/10 bg-white/[0.04]'
-            }`}
-          >
-            {celebrating && (
-              <span
-                key={celebrateAt}
-                className="pointer-events-none absolute left-1/2 top-1/2 h-64 w-64 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-amber-300/50 tv-ring"
-              />
-            )}
+            key={`${modeIdx}-${paused}`}
+            className="tv-progress h-full rounded-full bg-amber-400/70"
+            style={{ animationDuration: `${ROTATE_MS}ms`, animationPlayState: paused ? 'paused' : 'running' }}
+          />
+        </div>
+      </div>
 
-            {hero ? (
-              <>
-                <div className="flex items-center gap-3">
-                  <span className="rounded-full border border-amber-300/30 bg-amber-400/10 px-3 py-1 text-xs font-black tracking-wide text-amber-200">
-                    {celebrating ? 'הרגע נכנס!' : 'העדכון האחרון'}
-                  </span>
-                  {hero.kind === 'meeting' && (
-                    <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-400">
-                      {hero.type === 'zoom' ? (
-                        <Video className="h-4 w-4" aria-hidden="true" />
-                      ) : (
-                        <Users className="h-4 w-4" aria-hidden="true" />
-                      )}
-                      {hero.type === 'zoom' ? 'זום' : 'פרונטלי'}
-                    </span>
-                  )}
-                </div>
-
-                <p className="mt-8 text-xl font-bold text-slate-300 sm:text-2xl xl:text-3xl">
-                  {hero.kind === 'deal' ? 'עסקה נסגרה 🎉' : 'נקבעה פגישה חדשה'}
-                </p>
-                <p className="mt-2 line-clamp-2 text-6xl font-black leading-[0.98] tracking-tight sm:text-7xl xl:text-8xl 2xl:text-9xl">
-                  {displayName(hero)}
-                </p>
-
-                <div className="mt-8 flex items-center gap-4">
-                  <span
-                    className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl text-xl font-black text-[#0a1327] xl:h-16 xl:w-16"
-                    style={{ background: agentColor(hero.agent) }}
-                  >
-                    {initials(hero.agent)}
-                  </span>
-                  <span className="text-2xl font-bold text-slate-300 sm:text-3xl xl:text-4xl">
-                    {hero.agent || '—'}
-                    {hero.kind === 'meeting' && hero.when && (
-                      <span className="text-amber-300"> · {hhmm(hero.when)}</span>
-                    )}
-                    {hero.kind === 'deal' && hero.amount > 0 && (
-                      <span className="text-emerald-300"> · {shekels(hero.amount)}</span>
-                    )}
-                  </span>
-                </div>
-
-                <div className="pointer-events-none absolute -left-10 -top-10 opacity-[0.07]">
-                  <CalendarPlus className="h-56 w-56" aria-hidden="true" strokeWidth={1} />
-                </div>
-              </>
-            ) : (
-              <div className="flex flex-col items-center text-center">
-                <span className="animate-float">
-                  <LogoMark className="h-20 w-20" rounded="rounded-3xl" />
-                </span>
-                <p className="mt-6 text-2xl font-black">מוכנים ליום חדש</p>
-                <p className="mt-2 text-sm text-slate-400">
-                  כל פגישה שתיקבע היום תופיע כאן ברגע שהיא נכנסת
-                </p>
-              </div>
-            )}
-          </div>
-
-          <div className="grid grid-cols-3 gap-4">
-            <StatTile
-              icon={CalendarPlus}
-              label="פגישות היום"
-              value={<AnimatedNumber value={board.counts.meetings} />}
-              accent="#fbbf24"
-            />
-            <StatTile
-              icon={Handshake}
-              label="עסקאות היום"
-              value={<AnimatedNumber value={board.counts.deals} />}
-              accent="#34d399"
-            />
-            <StatTile
-              icon={Wallet}
-              label="מחזור היום"
-              value={
-                <AnimatedNumber
-                  value={board.counts.revenue}
-                  format={(n) => `₪${n.toLocaleString('en-US')}`}
-                />
-              }
-              valueClass="text-3xl sm:text-4xl"
-              accent="#38bdf8"
-            />
-          </div>
-        </section>
+      {/* ── the rotating view ── */}
+      <main className="relative z-20 flex min-h-0 flex-1 flex-col px-6 pb-3 pt-5 sm:px-10">
+        <div key={mode} className="tv-rise flex min-h-0 flex-1 flex-col">
+          {mode === 'today' && (
+            <BoardView board={boards.today} scope="today" celebrating={celebrating} flash={flash} pace={pace} />
+          )}
+          {mode === 'week' && (
+            <BoardView board={boards.week} scope="week" celebrating={celebrating} flash={flash} />
+          )}
+          {mode === 'leaders' && (
+            <LeadersView rows={leaders} totals={boards.week.counts} />
+          )}
+        </div>
       </main>
 
       {/* ── footer ── */}
@@ -452,7 +333,7 @@ export default function TVPage() {
         </span>
       </footer>
 
-      {status === 'error' && feed.length === 0 && (
+      {status === 'error' && boards.today.counts.meetings === 0 && (
         <div className="absolute inset-x-0 bottom-16 z-30 text-center text-xs text-rose-300">
           לא הצלחנו לטעון נתונים — מנסה שוב…
         </div>
@@ -461,18 +342,18 @@ export default function TVPage() {
   )
 }
 
-function StatTile({ icon: Icon, label, value, accent, valueClass = 'text-4xl sm:text-5xl' }) {
+function TVBtn({ onClick, title, active, children }) {
   return (
-    <div className="relative overflow-hidden rounded-3xl border border-white/10 bg-white/[0.04] p-5 backdrop-blur-xl">
-      <span
-        className="pointer-events-none absolute -right-6 -top-8 h-24 w-24 rounded-full blur-2xl"
-        style={{ background: accent, opacity: 0.18 }}
-      />
-      <span className="flex items-center gap-2 text-xs font-bold text-slate-400">
-        <Icon className="h-4 w-4" style={{ color: accent }} aria-hidden="true" />
-        {label}
-      </span>
-      <p className={`mt-2 font-black tabular-nums ${valueClass}`}>{value}</p>
-    </div>
+    <button
+      onClick={onClick}
+      title={title}
+      className={`flex h-11 w-11 items-center justify-center rounded-2xl border transition active:scale-95 ${
+        active
+          ? 'border-amber-300/40 bg-amber-400/15 text-amber-200'
+          : 'border-white/10 bg-white/5 text-slate-300 hover:bg-white/10 hover:text-white'
+      }`}
+    >
+      {children}
+    </button>
   )
 }
