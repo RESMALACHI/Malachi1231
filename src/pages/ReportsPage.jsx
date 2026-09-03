@@ -318,7 +318,6 @@ export default function ReportsPage() {
         pending: k.pending,
         decided: k.decided,
         attendanceRate: k.attendanceRate,
-        bookedThisMonth: booked,
         avgPerDay: days > 0 ? booked / days : null,
       }
     }).sort((a, b) => b.total - a.total)

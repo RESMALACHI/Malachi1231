@@ -16,7 +16,7 @@ function avg1(n) {
 
 /**
  * Agent leaderboard — ranked by how many meetings each agent scheduled.
- * @param {{ rows: {name, total, attended, attendanceRate, avgPerDay, bookedThisMonth}[] }} props
+ * @param {{ rows: {name, total, attended, attendanceRate, avgPerDay}[] }} props
  *   rows sorted desc by total
  */
 export default function Leaderboard({ rows }) {
@@ -83,11 +83,6 @@ export default function Leaderboard({ rows }) {
                     <span className="font-extrabold tabular-nums text-slate-900">
                       {avg1(r.avgPerDay)}
                     </span>
-                    {r.bookedThisMonth != null && (
-                      <span className="text-[11px] tabular-nums text-slate-400">
-                        ({r.bookedThisMonth})
-                      </span>
-                    )}
                   </div>
                 </td>
                 <td className="px-4 py-3 font-medium tabular-nums text-green-700">
