@@ -2,8 +2,15 @@ import { useEffect, useRef, useState } from 'react'
 
 /**
  * Counts up to `value` whenever it changes (easeOutCubic).
+ * `format` optionally maps the running integer to a display string
+ * (e.g. thousands separators) — the default just prints it.
  */
-export default function AnimatedNumber({ value = 0, duration = 900, suffix = '' }) {
+export default function AnimatedNumber({
+  value = 0,
+  duration = 900,
+  suffix = '',
+  format = (n) => n,
+}) {
   const [display, setDisplay] = useState(Number(value) || 0)
   const fromRef = useRef(Number(value) || 0)
   const rafRef = useRef()
@@ -33,7 +40,7 @@ export default function AnimatedNumber({ value = 0, duration = 900, suffix = '' 
 
   return (
     <>
-      {display}
+      {format(display)}
       {suffix}
     </>
   )

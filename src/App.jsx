@@ -26,6 +26,7 @@ const LeadsPage = lazyWithReload(() => import('./pages/LeadsPage'))
 const TodayPage = lazyWithReload(() => import('./pages/TodayPage'))
 const LeadProfilePage = lazyWithReload(() => import('./pages/LeadProfilePage'))
 const ObjectionsPage = lazyWithReload(() => import('./pages/ObjectionsPage'))
+const TVPage = lazyWithReload(() => import('./pages/TVPage'))
 
 /** Old calendar links redirect home WITH their query — ?meeting= must survive. */
 function CalendarRedirect() {
@@ -50,6 +51,17 @@ export default function App() {
       <Suspense fallback={<PageFallback />}>
         <Routes>
           <Route path="/login" element={<LoginPage />} />
+
+          {/* Office wall-board — full screen, no sidebar, no agent picker.
+              Signed in is enough; a TV shouldn't need a name chosen. */}
+          <Route
+            path="/tv"
+            element={
+              <ProtectedRoute>
+                <TVPage />
+              </ProtectedRoute>
+            }
+          />
 
           {/* Authenticated area shares the header/layout */}
           <Route

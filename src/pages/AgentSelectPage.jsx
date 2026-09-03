@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { ChevronLeft, Crown } from 'lucide-react'
+import { Link } from 'react-router-dom'
+import { ChevronLeft, Crown, MonitorPlay } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { MANAGER_AGENT, pinFor } from '../lib/agents'
 import { LogoMark } from '../components/Logo'
@@ -36,6 +37,15 @@ export default function AgentSelectPage() {
   return (
     <div className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden px-4 py-10">
       <PatternBackground />
+
+      {/* Office wall-board — for the TV in the room, not for signing in. */}
+      <Link
+        to="/tv"
+        className="glass absolute end-4 top-4 z-10 inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-bold text-slate-700 transition hover:-translate-y-0.5 hover:shadow-lg active:scale-95"
+      >
+        <MonitorPlay className="h-4 w-4 text-amber-600" aria-hidden="true" />
+        מסך טלוויזיה
+      </Link>
 
       {/* Header */}
       <div className="mb-9 flex flex-col items-center text-center animate-pop-in">

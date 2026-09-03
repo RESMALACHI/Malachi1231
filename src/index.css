@@ -38,6 +38,15 @@
     color: #cbd5e1 !important;
   }
 
+  /* מסך הטלוויזיה is its own always-dark room — same opt-out as the sidebar,
+     so its muted labels stay legible on the navy background. */
+  .tv-screen .text-slate-400 {
+    color: #94a3b8 !important;
+  }
+  .tv-screen .text-slate-500 {
+    color: #64748b !important;
+  }
+
   /* NOTE: animations always play (per request). We previously disabled them
      under prefers-reduced-motion, but that hid all motion on systems where the
      OS "reduce motion" setting is on. To re-enable that accessibility behavior,
@@ -205,6 +214,23 @@
 .res-bar {
   transform-origin: bottom;
   animation: res-load-bar 1s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+}
+
+/* ── מסך הטלוויזיה — a quick gold wash when a new win lands ──────────────── */
+@keyframes tv-flash {
+  0% { opacity: 0; }
+  18% { opacity: 1; }
+  100% { opacity: 0; }
+}
+.tv-flash {
+  animation: tv-flash 1.8s ease-out both;
+}
+@keyframes tv-ring {
+  0% { transform: scale(0.4); opacity: 0.55; }
+  100% { transform: scale(2.4); opacity: 0; }
+}
+.tv-ring {
+  animation: tv-ring 1.8s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
 /* ── Mobile ergonomics ─────────────────────────────────────────────────── */
