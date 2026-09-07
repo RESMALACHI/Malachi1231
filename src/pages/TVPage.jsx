@@ -70,27 +70,32 @@ export default function TVPage() {
       setBoards(data)
       setStatus('ok')
 
-      // New wins today → celebrate (independent of which mode is on screen).
-      const keys = mergeFeed(data.today).map((x) => x.key)
+      // New wins → celebrate (independent of which mode is on screen). Only a
+      // row whose booking actually happened in the last few minutes counts:
+      // the board is windowed by meeting date now, so at midnight tomorrow's
+      // meetings slide into "today" — that is a new day, not 20 fresh wins.
+      const items = mergeFeed(data.today)
+      const keys = items.map((x) => x.key)
+      const isRecent = (x) => Date.now() - new Date(x.at).getTime() < 10 * 60_000
       if (seenRef.current == null) {
         seenRef.current = new Set(keys)
       } else {
-        const fresh = keys.filter((k) => !seenRef.current.has(k))
+        const fresh = items.filter((x) => !seenRef.current.has(x.key) && isRecent(x))
         for (const k of keys) seenRef.current.add(k)
         if (fresh.length) {
-          setFlash(new Set(fresh))
+          setFlash(new Set(fresh.map((x) => x.key)))
           setCelebrateAt(Date.now())
-          const top = mergeFeed(data.today).find((x) => fresh.includes(x.key))
-          if (soundRef.current) playChime(top?.kind === 'deal' ? 'deal' : 'meeting')
+          if (soundRef.current) playChime(fresh[0]?.kind === 'deal' ? 'deal' : 'meeting')
         }
       }
 
-      // Milestone on today's meeting count.
+      // Milestone on today's meeting count — only for real-time additions, not
+      // the bulk jump when the day rolls over or on the first load.
       const n = data.today.counts.meetings
       if (countRef.current == null) {
         countRef.current = n
       } else if (n > countRef.current) {
-        const hit = milestoneCrossed(countRef.current, n)
+        const hit = n - countRef.current <= 3 ? milestoneCrossed(countRef.current, n) : null
         countRef.current = n
         if (hit) {
           setMilestone({ n: hit, at: Date.now() })

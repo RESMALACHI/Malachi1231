@@ -1,12 +1,16 @@
 // Everything the "מסך טלוויזיה" board needs.
 //
-// The board celebrates two things as they happen: a meeting getting BOOKED, and
-// a deal getting CLOSED. It shows them for two windows — TODAY and THIS WEEK
-// (Sunday→now) — and the screen rotates between them plus a leaderboard.
+// The board shows how many meetings the team HAS — for TODAY and for THIS WEEK
+// — and rotates between those plus a leaderboard. A meeting counts by its own
+// date (when it takes place), not by when it was booked: the wall should say
+// "12 meetings today", and an agent with 8 meetings this week should read as 8
+// whether they booked them yesterday or last month.
 //
-// "Booked" is measured on event_created_at (when the event was created in
-// Google Calendar), NOT created_at (when our sync first saw the row) — the same
-// distinction meetingsService makes for "booked today".
+// The live feed / celebration still keys off a genuinely new row appearing
+// (see TVPage), so a booking made right now still pops on screen.
+//
+// Deals count by created_at (when the deal was logged) — that IS the deal's
+// moment, there is no separate "deal date".
 
 import { supabase } from '../lib/supabaseClient'
 import { REAL_AGENTS } from '../lib/agents'
@@ -20,20 +24,18 @@ const midnight = () => {
   return d
 }
 
-/** Local (Israel) midnight today, ISO. */
-function startOfTodayISO() {
-  return midnight().toISOString()
-}
-
-/** Local midnight on the Sunday that opens this week (the Israeli week), ISO. */
-function startOfWeekISO() {
+/** Local (Israel) midnight on the Sunday that opens this week. */
+function startOfWeek() {
   const d = midnight()
   d.setDate(d.getDate() - d.getDay())
-  return d.toISOString()
+  return d
 }
 
 async function fetchBoard(scope) {
-  const since = scope === 'week' ? startOfWeekISO() : startOfTodayISO()
+  const isWeek = scope === 'week'
+  const start = isWeek ? startOfWeek() : midnight()
+  const end = new Date(start)
+  end.setDate(end.getDate() + (isWeek ? 7 : 1))
 
   // Only meetings the sync could pin to a real agent count on the board. The
   // shared calendars are full of blockers — "איציק תפוס", "לא לקבוע" — that
@@ -43,14 +45,15 @@ async function fetchBoard(scope) {
     supabase
       .from('meetings')
       .select('id, agent_name, title, meeting_date, type, event_created_at')
-      .gte('event_created_at', since)
+      .gte('meeting_date', start.toISOString())
+      .lt('meeting_date', end.toISOString())
       .in('agent_name', REAL_AGENTS)
-      .order('event_created_at', { ascending: false })
-      .limit(scope === 'week' ? 500 : 120),
+      .order('meeting_date', { ascending: true })
+      .limit(isWeek ? 800 : 200),
     supabase
       .from('deals')
       .select('id, agent_name, client_name, amount, kind, created_at')
-      .gte('created_at', since)
+      .gte('created_at', start.toISOString())
       .in('agent_name', REAL_AGENTS)
       .order('created_at', { ascending: false })
       .limit(300),
@@ -84,9 +87,9 @@ export async function getTvBoards() {
 }
 
 /**
- * The everyday booking rate, from the last `days` COMPLETE days (today excluded
- * so a slow morning doesn't drag the bar down). Lets the board say whether
- * today is running hot.
+ * The everyday load — average meetings PER DAY over the last `days` complete
+ * days (today excluded so a slow morning doesn't drag the bar down), counted by
+ * the meeting's own date to match the board. Lets it say whether today is busy.
  */
 export async function getDailyPace(days = 14) {
   if (typeof window !== 'undefined' && window.location.search.includes('demo')) {
@@ -97,8 +100,8 @@ export async function getDailyPace(days = 14) {
   const { count, error } = await supabase
     .from('meetings')
     .select('id', { count: 'exact', head: true })
-    .gte('event_created_at', from.toISOString())
-    .lt('event_created_at', midnight().toISOString())
+    .gte('meeting_date', from.toISOString())
+    .lt('meeting_date', midnight().toISOString())
     .in('agent_name', REAL_AGENTS) // match the board — assigned meetings only
 
   if (error) throw error
@@ -153,18 +156,25 @@ export function leaderboardFrom({ booked = [], deals = [] }) {
 /* ── ?demo — a good week's worth of wins ──────────────────────────────────── */
 function demoBoard(scope) {
   const ago = (min) => new Date(Date.now() - min * 60000).toISOString()
-  const soon = (min) => new Date(Date.now() + min * 60000).toISOString()
-  const agents = ['ודיע', 'ויטלי', 'מרים', 'מלאכי אזערי', 'עדי', 'שליו']
+  const agents = ['ודיע', 'ויטלי', 'מרים', 'מלאכי אזערי', 'עדי', 'דניאל']
   const clients = [
     'לואי קסיס', 'חתם ברגס', 'דנה לוי', 'יוסי כהן', 'רון אבידן', 'שירה מזרחי',
     'משפחת אלון', 'נועה גבע', 'איתי ברק', 'מאיה סער', 'טל רגב', 'עומר נחום',
   ]
+  // A meeting some time inside the demo window (today, or spread across this
+  // week) so it lands the same way a real one would.
+  const inWindow = (i) => {
+    const d = new Date()
+    if (scope === 'week') d.setDate(d.getDate() - d.getDay() + (i % 6))
+    d.setHours(9 + (i % 9), (i * 17) % 60, 0, 0)
+    return d.toISOString()
+  }
   const n = scope === 'week' ? 34 : 11
   const booked = Array.from({ length: n }, (_, i) => ({
     id: `${scope}-m${i}`,
     agent_name: agents[i % agents.length],
     title: `פגישה ${i % 3 ? 'פרונטלית' : 'זום'} - ${clients[i % clients.length]} - ${agents[i % agents.length]}`,
-    meeting_date: soon(30 + i * 47),
+    meeting_date: inWindow(i),
     type: i % 3 ? 'frontal' : 'zoom',
     event_created_at: ago(2 + i * (scope === 'week' ? 190 : 26)),
   }))
@@ -182,7 +192,7 @@ function demoBoard(scope) {
     booked,
     deals,
     counts: {
-      meetings: scope === 'week' ? 41 : 17,
+      meetings: booked.length,
       deals: deals.length,
       revenue: deals.reduce((s, d) => s + d.amount, 0),
     },
