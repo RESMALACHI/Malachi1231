@@ -16,7 +16,15 @@ const ROLE_STYLE = {
 const FIELD =
   'w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm outline-none transition focus:border-amber-400 focus:bg-white'
 
-const blank = () => ({ name: '', aliases: [], gender: 'm', arabic: '', roles: ['agent'], pin: '' })
+const blank = () => ({
+  name: '',
+  aliases: [],
+  gender: 'm',
+  arabic: '',
+  roles: ['agent'],
+  pin: '',
+  viewAll: false,
+})
 
 /**
  * Add, edit and remove the people in the app.
@@ -99,6 +107,11 @@ export default function AgentsPanel() {
       roles: ROLE_KEYS.filter((k) => draft.roles.includes(k)),
       // Four digits or nothing. A two-digit typo must not become a lock.
       pin: /^\d{4}$/.test(draft.pin || '') ? draft.pin : '',
+      // Only means anything for an agent who also manages — ignored otherwise.
+      viewAll:
+        draft.viewAll === true &&
+        draft.roles.includes('agent') &&
+        draft.roles.includes('manager'),
     }
     // No aliases means the name itself is the only thing a calendar event can
     // be matched on — which is what aliasesFor() falls back to anyway.
@@ -163,6 +176,7 @@ export default function AgentsPanel() {
                 <div className="font-bold text-slate-900">{a.name}</div>
                 <div className="text-[11px] text-slate-500">
                   {a.roles.map((r) => ROLES[r]?.label || r).join(' · ')}
+                  {a.viewAll ? ' · תצוגת כל הסוכנים' : ''}
                   {a.pin ? ' · 🔒 קוד כניסה' : ''}
                 </div>
                 <div className="mt-1 flex flex-wrap gap-1">
@@ -379,11 +393,50 @@ function AgentForm({ draft, setDraft, onSubmit, onCancel, saving, error }) {
           })}
         </div>
         {draft.roles.includes('manager') && draft.roles.includes('agent') && (
-          <p className="mt-1.5 rounded-lg bg-indigo-50 px-2.5 py-1.5 text-[11px] leading-relaxed text-indigo-800">
-            סוכן שהוא גם מנהל נכנס למערכת שלו — הפגישות, סיכום היום והמשימות שלו
-            נשארים. הוא מקבל <b>בנוסף</b> את נתוני כל הסוכנים, ומעבר בין "שלי"
-            ל"כל הסוכנים" בדוחות.
-          </p>
+          <div className="mt-1.5 space-y-1.5">
+            <button
+              type="button"
+              onClick={() => set({ viewAll: !draft.viewAll })}
+              aria-pressed={!!draft.viewAll}
+              className={`flex w-full items-center gap-3 rounded-xl border p-2.5 text-right transition ${
+                draft.viewAll
+                  ? 'border-indigo-500 bg-white shadow-sm'
+                  : 'border-slate-200 bg-white/50 hover:border-slate-300'
+              }`}
+            >
+              <span
+                className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-md border-2 transition ${
+                  draft.viewAll ? 'border-indigo-600 bg-indigo-600 text-white' : 'border-slate-300'
+                }`}
+              >
+                {draft.viewAll && <Check className="h-3 w-3" aria-hidden="true" />}
+              </span>
+              <span className="min-w-0">
+                <span className="block text-sm font-bold text-slate-800">
+                  עובד מתצוגת «כל הסוכנים»
+                </span>
+                <span className="block text-[11px] leading-tight text-slate-500">
+                  בלי סיכום יום, משימות ופגישות אבודות אישיים — למנהל שגם קובע קצת
+                  פגישות
+                </span>
+              </span>
+            </button>
+            <p className="rounded-lg bg-indigo-50 px-2.5 py-1.5 text-[11px] leading-relaxed text-indigo-800">
+              {draft.viewAll ? (
+                <>
+                  נכנס ישר לתצוגת כל הסוכנים. הפגישות שלו עדיין מסומנות על שמו
+                  ונספרות בכל הדוחות והנתונים — פשוט <b>בלי</b> העמודים האישיים
+                  סיכום יום / משימות / פגישות אבודות.
+                </>
+              ) : (
+                <>
+                  סוכן שהוא גם מנהל נכנס למערכת שלו — הפגישות, סיכום היום והמשימות
+                  שלו נשארים. הוא מקבל <b>בנוסף</b> את נתוני כל הסוכנים, ומעבר בין
+                  "שלי" ל"כל הסוכנים" בדוחות.
+                </>
+              )}
+            </p>
+          </div>
         )}
       </div>
 

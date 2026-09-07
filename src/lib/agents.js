@@ -104,6 +104,11 @@ let ROLES_BY_NAME = {}
 let PIN_BY_NAME = {}
 let AGENT_GENDER = {}
 let ARABIC_NAME = {}
+// Agent+manager people who nonetheless work from the all-agents view — the CEO
+// who also takes a few meetings. Their meetings are still classified to them
+// and counted everywhere; they just don't get the personal סיכום-יום / משימות
+// / פגישות-אבודות pages. Set per person in the ניהול page (`viewAll` flag).
+let VIEW_ALL_BY_NAME = {}
 
 /**
  * Recompute the derived tables from ROSTER.
@@ -131,12 +136,18 @@ function derive() {
   )
   AGENT_GENDER = Object.fromEntries(ROSTER.map((a) => [a.name, a.gender === 'f' ? 'f' : 'm']))
   ARABIC_NAME = Object.fromEntries(ROSTER.filter((a) => a.arabic).map((a) => [a.name, a.arabic]))
+  VIEW_ALL_BY_NAME = Object.fromEntries(ROSTER.map((a) => [a.name, a.viewAll === true]))
 
   REAL_AGENTS = ROSTER.filter((a) => a.roles.includes('agent')).map((a) => a.name)
-  // The welcome screen's crown belongs to a manager who is ONLY a manager;
-  // an agent who also manages enters as themselves.
+  // The welcome screen's crown belongs to the company manager: someone who is
+  // ONLY a manager, or a manager who took on a few meetings but still works
+  // from the all-agents view (the `viewAll` flag). A plain agent+manager
+  // (ויטלי) enters as themselves.
   MANAGER_AGENT =
-    ROSTER.find((a) => a.roles.includes('manager') && !a.roles.includes('agent'))?.name || ''
+    (
+      ROSTER.find((a) => a.roles.includes('manager') && !a.roles.includes('agent')) ||
+      ROSTER.find((a) => a.roles.includes('manager') && a.viewAll === true)
+    )?.name || ''
   ADMIN_AGENT = ROSTER.find((a) => a.roles.includes('admin'))?.name || REAL_AGENTS[0] || AGENTS[0] || ''
   DEFAULT_AGENT = ADMIN_AGENT || REAL_AGENTS[0] || AGENTS[0] || ''
 }
@@ -162,6 +173,9 @@ export function applyRoster(list) {
       gender: a?.gender === 'f' ? 'f' : 'm',
       arabic: String(a?.arabic || '').trim(),
       roles: normaliseRoles(a),
+      // "Works from the all-agents view" — only meaningful for someone who is
+      // both an agent and a manager (see managerViewOnly).
+      viewAll: a?.viewAll === true,
       // Digits only, and only a real 4-digit code counts. Anything else is
       // "no PIN" — a half-typed one must not become a lock nobody can open.
       pin: /^\d{4}$/.test(String(a?.pin || '')) ? String(a.pin) : '',
@@ -216,15 +230,21 @@ export const isManagerAgent = (name) => hasRole(name, 'manager')
 export const isFieldAgent = (name) => hasRole(name, 'agent')
 
 /**
- * Shows the AGGREGATE view instead of a personal one.
+ * Shows the AGGREGATE view instead of a personal one, and drops the personal
+ * work pages (סיכום יום, משימות, פגישות אבודות).
  *
- * This is the distinction that multi-role exists for. איציק manages and nothing
- * else, so his dashboard is everyone's meetings. ויטלי manages AND sells, so his
- * dashboard stays his own — the manager role adds pages to it rather than
- * replacing it. Reading "is a manager" as "has no meetings of their own" is
- * what would quietly empty his calendar.
+ * This is the distinction that multi-role exists for. איציק manages, so his
+ * dashboard is everyone's meetings. ויטלי manages AND sells, so his dashboard
+ * stays his own — the manager role adds pages to it rather than replacing it.
+ *
+ * The `viewAll` flag is the middle case: a manager who ALSO started taking a
+ * few meetings (the CEO) but still wants the all-agents view and no personal
+ * day-summary / tasks pages. His meetings are classified to him and counted
+ * everywhere (that runs off the `agent` role, not this); only the navigation
+ * and the default dashboard scope follow the flag.
  */
-export const managerViewOnly = (name) => isManagerAgent(name) && !isFieldAgent(name)
+export const managerViewOnly = (name) =>
+  isManagerAgent(name) && (!isFieldAgent(name) || VIEW_ALL_BY_NAME[name] === true)
 
 // Words that mark an unassigned event as "not a lost meeting" — e.g. people who
 // aren't agents. Whole-word matched. Such events are skipped entirely.
