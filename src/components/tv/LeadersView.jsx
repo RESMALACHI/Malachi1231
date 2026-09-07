@@ -5,7 +5,7 @@ import { agentColor, initials, shekels } from './util'
 const MEDALS = ['🥇', '🥈', '🥉']
 
 /**
- * "המובילים" — every agent with a meeting this week, ranked by how many they
+ * "המובילים" — every agent with a meeting THIS MONTH, ranked by how many they
  * have, with a bar that fills in on entry. The leader gets the gold treatment.
  * Up to six rows fit a 768-tall screen; a seventh+ is summarised in a footer.
  */
@@ -19,7 +19,7 @@ export default function LeadersView({ rows = [], totals }) {
       <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
         <h2 className="flex items-center gap-2 text-xl font-black sm:gap-3 sm:text-3xl">
           <Trophy className="h-6 w-6 text-amber-400 sm:h-7 sm:w-7" aria-hidden="true" />
-          המובילים · השבוע
+          המובילים · החודש
         </h2>
         {totals && (
           <div className="flex items-center gap-4 text-xs font-bold text-slate-300 sm:text-sm">
@@ -37,7 +37,7 @@ export default function LeadersView({ rows = [], totals }) {
 
       <div className="mt-3 flex min-h-0 flex-1 flex-col justify-center gap-1.5 sm:mt-5 sm:gap-2.5">
         {top.length === 0 ? (
-          <p className="text-center text-sm text-slate-400">אין נתונים לשבוע הזה עדיין</p>
+          <p className="text-center text-sm text-slate-400">אין נתונים לחודש הזה עדיין</p>
         ) : (
           top.map((r, i) => {
             const c = agentColor(r.name)
@@ -85,7 +85,7 @@ export default function LeadersView({ rows = [], totals }) {
                     />
                   </div>
                   <p className="mt-1 truncate text-[11px] font-semibold text-slate-400">
-                    {r.deals > 0 ? `${r.deals} עסקאות · ${shekels(r.revenue)}` : 'טרם נסגרה עסקה השבוע'}
+                    {r.deals > 0 ? `${r.deals} עסקאות · ${shekels(r.revenue)}` : 'טרם נסגרה עסקה החודש'}
                   </p>
                 </div>
 
@@ -101,7 +101,7 @@ export default function LeadersView({ rows = [], totals }) {
         )}
         {rest > 0 && (
           <p className="pt-1 text-center text-[11px] font-semibold text-slate-400 sm:text-xs">
-            ועוד {rest} {rest === 1 ? 'סוכן' : 'סוכנים'} עם פגישות השבוע
+            ועוד {rest} {rest === 1 ? 'סוכן' : 'סוכנים'} עם פגישות החודש
           </p>
         )}
       </div>

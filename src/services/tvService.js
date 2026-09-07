@@ -13,7 +13,6 @@
 // moment, there is no separate "deal date".
 
 import { supabase } from '../lib/supabaseClient'
-import { REAL_AGENTS } from '../lib/agents'
 
 const EMPTY = { scope: 'today', booked: [], deals: [], counts: { meetings: 0, deals: 0, revenue: 0 } }
 export const EMPTY_BOARD = EMPTY
@@ -24,37 +23,55 @@ const midnight = () => {
   return d
 }
 
-/** Local (Israel) midnight on the Sunday that opens this week. */
-function startOfWeek() {
-  const d = midnight()
-  d.setDate(d.getDate() - d.getDay())
-  return d
+/** The local (Israel) window a scope covers: [start, end). */
+function windowFor(scope) {
+  const start = midnight()
+  const end = new Date(start)
+  if (scope === 'month') {
+    start.setDate(1)
+    end.setTime(start.getTime())
+    end.setMonth(end.getMonth() + 1)
+  } else if (scope === 'week') {
+    start.setDate(start.getDate() - start.getDay())
+    end.setTime(start.getTime())
+    end.setDate(end.getDate() + 7)
+  } else {
+    end.setDate(end.getDate() + 1)
+  }
+  return { start, end }
 }
 
-async function fetchBoard(scope) {
-  const isWeek = scope === 'week'
-  const start = isWeek ? startOfWeek() : midnight()
-  const end = new Date(start)
-  end.setDate(end.getDate() + (isWeek ? 7 : 1))
+const SCOPE_LIMIT = { today: 200, week: 800, month: 1000 }
 
-  // Only meetings the sync could pin to a real agent count on the board. The
-  // shared calendars are full of blockers — "איציק תפוס", "לא לקבוע" — that
-  // never match an agent alias and so land with agent_name = null; those are
-  // not bookings and must not inflate the numbers or the leaderboard.
+async function fetchBoard(scope) {
+  const { start, end } = windowFor(scope)
+
+  // Only meetings the sync could pin to an agent count on the board. The shared
+  // calendars are full of blockers — "איציק תפוס", "לא לקבוע" — that never
+  // match an agent alias and so land with agent_name = null; those are not
+  // bookings and must not inflate the numbers or the leaderboard.
+  //
+  // Deliberately "has an agent" rather than "is in REAL_AGENTS": /tv lives
+  // OUTSIDE the app Layout, and SettingsProvider — the only thing that loads
+  // the live roster from the database — lives inside it. On a TV that has never
+  // signed into the app itself, agents.js is still on BUILTIN_ROSTER, so a
+  // roster check here quietly dropped every meeting of anyone added since
+  // (דניאל's four meetings vanished and "פגישות היום" read 3 instead of 7).
   const [bookedRes, dealsRes] = await Promise.all([
     supabase
       .from('meetings')
       .select('id, agent_name, title, meeting_date, type, event_created_at')
       .gte('meeting_date', start.toISOString())
       .lt('meeting_date', end.toISOString())
-      .in('agent_name', REAL_AGENTS)
+      .not('agent_name', 'is', null)
       .order('meeting_date', { ascending: true })
-      .limit(isWeek ? 800 : 200),
+      .limit(SCOPE_LIMIT[scope] || 500),
     supabase
       .from('deals')
       .select('id, agent_name, client_name, amount, kind, created_at')
       .gte('created_at', start.toISOString())
-      .in('agent_name', REAL_AGENTS)
+      .lt('created_at', end.toISOString())
+      .not('agent_name', 'is', null)
       .order('created_at', { ascending: false })
       .limit(300),
   ])
@@ -77,13 +94,17 @@ async function fetchBoard(scope) {
   }
 }
 
-/** Both windows in one shot — the screen rotates between them. */
+/** Every window in one shot — the screen rotates between them. */
 export async function getTvBoards() {
   if (typeof window !== 'undefined' && window.location.search.includes('demo')) {
-    return { today: demoBoard('today'), week: demoBoard('week') }
+    return { today: demoBoard('today'), week: demoBoard('week'), month: demoBoard('month') }
   }
-  const [today, week] = await Promise.all([fetchBoard('today'), fetchBoard('week')])
-  return { today, week }
+  const [today, week, month] = await Promise.all([
+    fetchBoard('today'),
+    fetchBoard('week'),
+    fetchBoard('month'),
+  ])
+  return { today, week, month }
 }
 
 /**
@@ -102,7 +123,7 @@ export async function getDailyPace(days = 14) {
     .select('id', { count: 'exact', head: true })
     .gte('meeting_date', from.toISOString())
     .lt('meeting_date', midnight().toISOString())
-    .in('agent_name', REAL_AGENTS) // match the board — assigned meetings only
+    .not('agent_name', 'is', null) // match the board — assigned meetings only
 
   if (error) throw error
   return { avgPerDay: Math.max(0, Math.round((count || 0) / days)) }
@@ -162,14 +183,15 @@ function demoBoard(scope) {
     'משפחת אלון', 'נועה גבע', 'איתי ברק', 'מאיה סער', 'טל רגב', 'עומר נחום',
   ]
   // A meeting some time inside the demo window (today, or spread across this
-  // week) so it lands the same way a real one would.
+  // week / month) so it lands the same way a real one would.
   const inWindow = (i) => {
     const d = new Date()
-    if (scope === 'week') d.setDate(d.getDate() - d.getDay() + (i % 6))
+    if (scope === 'month') d.setDate(1 + (i % d.getDate()))
+    else if (scope === 'week') d.setDate(d.getDate() - d.getDay() + (i % 6))
     d.setHours(9 + (i % 9), (i * 17) % 60, 0, 0)
     return d.toISOString()
   }
-  const n = scope === 'week' ? 34 : 11
+  const n = scope === 'month' ? 77 : scope === 'week' ? 34 : 11
   const booked = Array.from({ length: n }, (_, i) => ({
     id: `${scope}-m${i}`,
     agent_name: agents[i % agents.length],
@@ -180,12 +202,12 @@ function demoBoard(scope) {
   }))
   const deals = [
     { id: `${scope}-d1`, agent_name: 'ויטלי', client_name: 'משפחת ברקוביץ', amount: 24000, kind: 'project', created_at: ago(70) },
-    ...(scope === 'week'
-      ? [
+    ...(scope === 'today'
+      ? []
+      : [
           { id: `${scope}-d2`, agent_name: 'מרים', client_name: 'אור פלח', amount: 12500, kind: 'course', created_at: ago(1600) },
           { id: `${scope}-d3`, agent_name: 'ודיע', client_name: 'קרן שדה', amount: 38000, kind: 'project', created_at: ago(3400) },
-        ]
-      : []),
+        ]),
   ]
   return {
     scope,
