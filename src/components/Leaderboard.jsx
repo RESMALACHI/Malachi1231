@@ -15,21 +15,28 @@ function avg1(n) {
 }
 
 /**
- * Agent leaderboard — ranked by how many meetings each agent scheduled.
- * @param {{ rows: {name, total, attended, attendanceRate, avgPerDay}[] }} props
- *   rows sorted desc by total
+ * Agent leaderboard — ranked by how many meetings each agent BOOKED this month.
+ *
+ * "נקבעו החודש" counts the act of setting an appointment (its creation date),
+ * so a meeting booked today for the end of the month counts today. The
+ * attendance columns look only at meetings that have already taken place —
+ * otherwise a full calendar for later in the month would read as a pile of
+ * meetings nobody updated.
+ *
+ * @param {{ rows: {name, booked, happened, attended, pending, attendanceRate, avgPerDay}[] }} props
+ *   rows sorted desc by booked
  */
 export default function Leaderboard({ rows }) {
-  const maxTotal = Math.max(1, ...rows.map((r) => r.total))
+  const maxBooked = Math.max(1, ...rows.map((r) => r.booked || 0))
   const maxAvg = Math.max(0.1, ...rows.map((r) => r.avgPerDay || 0))
 
   return (
     <div className="card overflow-hidden rounded-3xl border-slate-100 shadow-md shadow-slate-200/50">
       <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 border-b border-slate-100 px-5 py-3.5">
         <Trophy className="h-5 w-5 text-amber-500" aria-hidden="true" />
-        <h3 className="font-bold text-slate-900">טבלת מובילים — הכי הרבה פגישות</h3>
+        <h3 className="font-bold text-slate-900">טבלת מובילים — הכי הרבה קביעות החודש</h3>
         <span className="text-xs font-medium text-slate-400">
-          · ממוצע קביעה ליום = פגישות שנקבעו החודש, לחלק לימי עבודה (א׳–ה׳)
+          · נספרות פגישות שנקבעו מתחילת החודש · ההגעה נמדדת רק על פגישות שכבר התקיימו
         </span>
       </div>
       <div className="overflow-x-auto">
@@ -38,8 +45,9 @@ export default function Leaderboard({ rows }) {
             <tr className="border-b border-slate-200 text-xs text-slate-500">
               <th className="px-4 py-2.5 font-semibold">מקום</th>
               <th className="px-4 py-2.5 font-semibold">סוכן</th>
-              <th className="px-4 py-2.5 font-semibold">סה"כ פגישות</th>
+              <th className="px-4 py-2.5 font-semibold">נקבעו החודש</th>
               <th className="px-4 py-2.5 font-semibold">ממוצע קביעה ליום</th>
+              <th className="px-4 py-2.5 font-semibold">התקיימו</th>
               <th className="px-4 py-2.5 font-semibold">הגיעו</th>
               <th className="px-4 py-2.5 font-semibold">טרם עודכנו</th>
               <th className="px-4 py-2.5 font-semibold">אחוז הגעה</th>
@@ -64,11 +72,11 @@ export default function Leaderboard({ rows }) {
                     <div className="h-2 w-16 shrink-0 overflow-hidden rounded-full bg-slate-100">
                       <div
                         className="h-2 rounded-full bg-slate-900"
-                        style={{ width: `${Math.round((r.total / maxTotal) * 100)}%` }}
+                        style={{ width: `${Math.round(((r.booked || 0) / maxBooked) * 100)}%` }}
                       />
                     </div>
                     <span className="font-extrabold tabular-nums text-slate-900">
-                      {r.total}
+                      {r.booked}
                     </span>
                   </div>
                 </td>
@@ -84,6 +92,9 @@ export default function Leaderboard({ rows }) {
                       {avg1(r.avgPerDay)}
                     </span>
                   </div>
+                </td>
+                <td className="px-4 py-3 font-medium tabular-nums text-slate-600">
+                  {r.happened}
                 </td>
                 <td className="px-4 py-3 font-medium tabular-nums text-green-700">
                   {r.attended}

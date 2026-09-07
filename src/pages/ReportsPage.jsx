@@ -290,18 +290,22 @@ export default function ReportsPage() {
 
   const kpis = useMemo(() => computeKpis(meetings), [meetings])
 
-  // Agent leaderboard (manager only) — ranked by total meetings scheduled.
+  // Agent leaderboard (manager only) — ranked by how many meetings each agent
+  // BOOKED this month (the act of setting appointments), not by how many happen
+  // to fall in the month. On the current month that means month-to-date: a
+  // meeting still ahead of us this month was already booked, so it counts; the
+  // attendance columns only look at meetings that have actually taken place, so
+  // a full calendar for later in the month doesn't inflate "טרם עודכנו".
   const leaderboard = useMemo(() => {
     if (!isManager) return []
+    const now = Date.now()
+
     const byName = new Map()
     for (const m of meetings) {
       if (!REAL_AGENTS.includes(m.agent_name)) continue
       byName.set(m.agent_name, [...(byName.get(m.agent_name) || []), m])
     }
 
-    // How many meetings each agent BOOKED this month (by creation date), so the
-    // daily average measures the work of setting appointments — not how many
-    // happen to fall in the month.
     const bookedByName = new Map()
     for (const m of bookedThisMonth) {
       bookedByName.set(m.agent_name, (bookedByName.get(m.agent_name) || 0) + 1)
@@ -309,18 +313,23 @@ export default function ReportsPage() {
     const days = workingDaysElapsedInMonth(year, month)
 
     return REAL_AGENTS.map((name) => {
-      const k = computeKpis(byName.get(name) || [])
+      const mine = byName.get(name) || []
+      const happened = mine.filter((m) => new Date(m.meeting_date).getTime() <= now)
+      const attended = happened.filter((m) => m.status === 'attended').length
+      const noShow = happened.filter((m) => m.status === 'no_show').length
+      const decided = attended + noShow
       const booked = bookedByName.get(name) || 0
       return {
         name,
-        total: k.total,
-        attended: k.attended,
-        pending: k.pending,
-        decided: k.decided,
-        attendanceRate: k.attendanceRate,
+        booked,
+        happened: happened.length,
+        attended,
+        pending: happened.filter((m) => m.status === 'pending').length,
+        decided,
+        attendanceRate: decided > 0 ? Math.round((attended / decided) * 100) : null,
         avgPerDay: days > 0 ? booked / days : null,
       }
-    }).sort((a, b) => b.total - a.total)
+    }).sort((a, b) => b.booked - a.booked || b.attended - a.attended)
   }, [isManager, meetings, bookedThisMonth, year, month])
 
   // Only meetings marked as attended, chronological — listed in the image.
