@@ -10,7 +10,6 @@ import {
   Pause,
   Radio,
   Sun,
-  CalendarRange,
   Trophy,
 } from 'lucide-react'
 import { LogoMark } from '../components/Logo'
@@ -30,18 +29,13 @@ const MILESTONE_MS = 6_500 // the full-screen milestone celebration
 
 const MODES = [
   { key: 'today', label: 'היום', icon: Sun },
-  { key: 'week', label: 'השבוע', icon: CalendarRange },
   { key: 'leaders', label: 'המובילים', icon: Trophy },
 ]
 
 export default function TVPage() {
   const navigate = useNavigate()
 
-  const [boards, setBoards] = useState({
-    today: EMPTY_BOARD,
-    week: EMPTY_BOARD,
-    month: EMPTY_BOARD,
-  })
+  const [boards, setBoards] = useState({ today: EMPTY_BOARD, month: EMPTY_BOARD })
   const [pace, setPace] = useState(null)
   const [status, setStatus] = useState('loading') // loading | ok | error
 
@@ -324,9 +318,6 @@ export default function TVPage() {
         <div key={mode} className="tv-rise flex min-h-0 flex-1 flex-col">
           {mode === 'today' && (
             <BoardView board={boards.today} scope="today" celebrating={celebrating} flash={flash} pace={pace} />
-          )}
-          {mode === 'week' && (
-            <BoardView board={boards.week} scope="week" celebrating={celebrating} flash={flash} />
           )}
           {mode === 'leaders' && (
             <LeadersView rows={leaders} totals={boards.month.counts} />

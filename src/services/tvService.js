@@ -94,17 +94,13 @@ async function fetchBoard(scope) {
   }
 }
 
-/** Every window in one shot — the screen rotates between them. */
+/** Both windows in one shot — today's board, and the month behind המובילים. */
 export async function getTvBoards() {
   if (typeof window !== 'undefined' && window.location.search.includes('demo')) {
-    return { today: demoBoard('today'), week: demoBoard('week'), month: demoBoard('month') }
+    return { today: demoBoard('today'), month: demoBoard('month') }
   }
-  const [today, week, month] = await Promise.all([
-    fetchBoard('today'),
-    fetchBoard('week'),
-    fetchBoard('month'),
-  ])
-  return { today, week, month }
+  const [today, month] = await Promise.all([fetchBoard('today'), fetchBoard('month')])
+  return { today, month }
 }
 
 /**
