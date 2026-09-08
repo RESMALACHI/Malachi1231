@@ -24,6 +24,7 @@ import {
   sendSummary,
 } from '../services/whatsappService'
 import { saveDaySummary, getMyDaySummary, localDateKey } from '../services/daySummaryService'
+import AutoSummaryToggle from '../components/AutoSummaryToggle'
 
 // Where the daily summary goes — the "נבחרת החלומות" WhatsApp group.
 const RECIPIENT = '972504573304-1549874088@g.us'
@@ -348,6 +349,8 @@ export default function DaySummaryPage() {
       {!connected && waState !== null && isAdmin && (
         <SharedQrCard onConnected={() => setWaState('authorized')} />
       )}
+
+      <AutoSummaryToggle />
 
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-[1fr_1fr]">
         {/* Fields */}

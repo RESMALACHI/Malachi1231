@@ -7,6 +7,7 @@ import GlobalSearch from './GlobalSearch'
 import { LogoMark } from './Logo'
 import SkyToggle from './SkyToggle'
 import { applyTheme, isDark } from '../lib/theme'
+import { useAutoDaySummary } from '../lib/useAutoDaySummary'
 import { UnassignedProvider } from '../context/UnassignedContext'
 import { SettingsProvider } from '../context/SettingsContext'
 import { useAuth } from '../context/AuthContext'
@@ -56,6 +57,10 @@ export default function Layout() {
     setDrawerOpen(false)
     window.scrollTo(0, 0)
   }, [location.pathname])
+
+  // Opt-in, per device: opens סיכום יום by itself once the agent is away from
+  // the office at the end of the day. Lives here so it watches every page.
+  useAutoDaySummary()
 
   // After login, show the fancy agent picker before entering the app.
   if (!agentConfirmed) return <AgentSelectPage />

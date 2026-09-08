@@ -75,6 +75,51 @@ export async function saveGoals(goals) {
   if (error) throw error
 }
 
+/**
+ * The office, for the "open my day summary when I leave" option.
+ *
+ * Seeded on ראש פינה so the feature is usable before anyone configures it, but
+ * the town centre is not the car park — the ניהול page has a button that sets
+ * this from the admin's own position while they are standing at the branch.
+ */
+export const DEFAULT_OFFICE = {
+  label: 'ראש פינה',
+  lat: 32.9686,
+  lng: 35.5425,
+  radiusM: 300,
+  afterHour: 15, // no earlier than this; stepping out for lunch is not "home time"
+}
+
+export async function getOffice() {
+  const { data, error } = await supabase
+    .from('app_settings')
+    .select('value')
+    .eq('key', 'office')
+    .maybeSingle()
+
+  if (error) throw error
+  const v = data?.value || {}
+  const num = (x, fallback) => (Number.isFinite(Number(x)) ? Number(x) : fallback)
+  return {
+    label: typeof v.label === 'string' && v.label.trim() ? v.label : DEFAULT_OFFICE.label,
+    lat: num(v.lat, DEFAULT_OFFICE.lat),
+    lng: num(v.lng, DEFAULT_OFFICE.lng),
+    radiusM: Math.max(50, num(v.radiusM, DEFAULT_OFFICE.radiusM)),
+    afterHour: Math.min(23, Math.max(0, num(v.afterHour, DEFAULT_OFFICE.afterHour))),
+  }
+}
+
+export async function saveOffice(office) {
+  const { error } = await supabase
+    .from('app_settings')
+    .upsert(
+      { key: 'office', value: office, updated_at: new Date().toISOString() },
+      { onConflict: 'key' }
+    )
+
+  if (error) throw error
+}
+
 /** Persist the hidden-pages list (shared across all users). */
 export async function saveHiddenPages(hidden) {
   const { error } = await supabase
