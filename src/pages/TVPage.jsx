@@ -70,17 +70,15 @@ export default function TVPage() {
       setBoards(data)
       setStatus('ok')
 
-      // New wins → celebrate (independent of which mode is on screen). Only a
-      // row whose booking actually happened in the last few minutes counts:
-      // the board is windowed by meeting date now, so at midnight tomorrow's
-      // meetings slide into "today" — that is a new day, not 20 fresh wins.
+      // New wins today → celebrate (independent of which mode is on screen).
+      // Today's board is everything booked since midnight, so any row that
+      // wasn't there last poll is a booking that just happened.
       const items = mergeFeed(data.today)
       const keys = items.map((x) => x.key)
-      const isRecent = (x) => Date.now() - new Date(x.at).getTime() < 10 * 60_000
       if (seenRef.current == null) {
         seenRef.current = new Set(keys)
       } else {
-        const fresh = items.filter((x) => !seenRef.current.has(x.key) && isRecent(x))
+        const fresh = items.filter((x) => !seenRef.current.has(x.key))
         for (const k of keys) seenRef.current.add(k)
         if (fresh.length) {
           setFlash(new Set(fresh.map((x) => x.key)))
@@ -89,13 +87,12 @@ export default function TVPage() {
         }
       }
 
-      // Milestone on today's meeting count — only for real-time additions, not
-      // the bulk jump when the day rolls over or on the first load.
+      // Milestone on today's booking count.
       const n = data.today.counts.meetings
       if (countRef.current == null) {
         countRef.current = n
       } else if (n > countRef.current) {
-        const hit = n - countRef.current <= 3 ? milestoneCrossed(countRef.current, n) : null
+        const hit = milestoneCrossed(countRef.current, n)
         countRef.current = n
         if (hit) {
           setMilestone({ n: hit, at: Date.now() })

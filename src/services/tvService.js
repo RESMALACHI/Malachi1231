@@ -1,13 +1,16 @@
 // Everything the "מסך טלוויזיה" board needs.
 //
-// The board shows how many meetings the team HAS — for TODAY and for THIS WEEK
-// — and rotates between those plus a leaderboard. A meeting counts by its own
-// date (when it takes place), not by when it was booked: the wall should say
-// "12 meetings today", and an agent with 8 meetings this week should read as 8
-// whether they booked them yesterday or last month.
+// The two windows measure deliberately different things, because they answer
+// different questions on a wall the whole floor is looking at:
 //
-// The live feed / celebration still keys off a genuinely new row appearing
-// (see TVPage), so a booking made right now still pops on screen.
+//   TODAY  — what the team has BOOKED today (event_created_at). It opens at
+//            zero every morning and climbs as people set appointments, which is
+//            the whole point of a live board: "nobody has booked yet today" has
+//            to read as 0, not as the 16 meetings already sitting on today's
+//            calendar from last week.
+//   MONTH  — how many meetings each agent HAS this month (meeting_date), for
+//            המובילים. An agent with 25 meetings in September reads as 25
+//            whether they booked them this morning or in August.
 //
 // Deals count by created_at (when the deal was logged) — that IS the deal's
 // moment, there is no separate "deal date".
@@ -31,20 +34,17 @@ function windowFor(scope) {
     start.setDate(1)
     end.setTime(start.getTime())
     end.setMonth(end.getMonth() + 1)
-  } else if (scope === 'week') {
-    start.setDate(start.getDate() - start.getDay())
-    end.setTime(start.getTime())
-    end.setDate(end.getDate() + 7)
   } else {
     end.setDate(end.getDate() + 1)
   }
   return { start, end }
 }
 
-const SCOPE_LIMIT = { today: 200, week: 800, month: 1000 }
-
 async function fetchBoard(scope) {
+  const isMonth = scope === 'month'
   const { start, end } = windowFor(scope)
+  // Today counts the ACT of booking; the month counts the meetings themselves.
+  const on = isMonth ? 'meeting_date' : 'event_created_at'
 
   // Only meetings the sync could pin to an agent count on the board. The shared
   // calendars are full of blockers — "איציק תפוס", "לא לקבוע" — that never
@@ -61,11 +61,11 @@ async function fetchBoard(scope) {
     supabase
       .from('meetings')
       .select('id, agent_name, title, meeting_date, type, event_created_at')
-      .gte('meeting_date', start.toISOString())
-      .lt('meeting_date', end.toISOString())
+      .gte(on, start.toISOString())
+      .lt(on, end.toISOString())
       .not('agent_name', 'is', null)
-      .order('meeting_date', { ascending: true })
-      .limit(SCOPE_LIMIT[scope] || 500),
+      .order(on, { ascending: isMonth })
+      .limit(isMonth ? 1000 : 200),
     supabase
       .from('deals')
       .select('id, agent_name, client_name, amount, kind, created_at')
@@ -104,9 +104,10 @@ export async function getTvBoards() {
 }
 
 /**
- * The everyday load — average meetings PER DAY over the last `days` complete
- * days (today excluded so a slow morning doesn't drag the bar down), counted by
- * the meeting's own date to match the board. Lets it say whether today is busy.
+ * The everyday booking rate — meetings BOOKED per day over the last `days`
+ * complete days (today excluded so a slow morning doesn't drag the bar down).
+ * Counted the same way today's tile is, so the two are comparable: the flame
+ * means "we are booking faster than usual".
  */
 export async function getDailyPace(days = 14) {
   if (typeof window !== 'undefined' && window.location.search.includes('demo')) {
@@ -117,8 +118,8 @@ export async function getDailyPace(days = 14) {
   const { count, error } = await supabase
     .from('meetings')
     .select('id', { count: 'exact', head: true })
-    .gte('meeting_date', from.toISOString())
-    .lt('meeting_date', midnight().toISOString())
+    .gte('event_created_at', from.toISOString())
+    .lt('event_created_at', midnight().toISOString())
     .not('agent_name', 'is', null) // match the board — assigned meetings only
 
   if (error) throw error

@@ -105,7 +105,10 @@ export default function BoardView({ board, scope, celebrating, flash, pace }) {
       <div className="grid shrink-0 grid-cols-3 gap-3 sm:gap-4">
         <StatTile
           icon={CalendarPlus}
-          label={`פגישות ${windowWord}`}
+          // "נקבעו" and not "פגישות": this is the number of appointments SET
+          // today, which opens at zero each morning — it is not the count of
+          // meetings sitting on today's calendar.
+          label={`נקבעו ${windowWord}`}
           value={<AnimatedNumber value={board.counts.meetings} />}
           accent="#fbbf24"
           foot={
