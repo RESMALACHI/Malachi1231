@@ -98,6 +98,19 @@ here and the model answers off that text alone; it never touches the database.
 Every reply starts with a marker in `BOT_REPLY_MARKERS` so the bot skips its own
 messages — add one for any new reply style.
 
+**Swapping the bot's Green API instance** (ניהול → ווצאפ הבוט, `save_shared`).
+Three things bite, in this order:
+1. **`apiUrl` is per-instance now** — `https://7105.api.greenapi.com`, not the old
+   shared `api.green-api.com`. Wrong host = every call 404s and the bot looks dead.
+2. **A new instance ships with every webhook OFF and no URL.** Set `webhookUrl` to
+   `.../functions/v1/wa-webhook?t=<app_auth.wa_webhook_token>` and turn on
+   `incomingWebhook`, `outgoingWebhook`, `outgoingMessageWebhook`,
+   `outgoingAPIMessageWebhook` (the bot accepts `.פגישה` from any device).
+   `POST {apiUrl}/waInstance{id}/setSettings/{token}`.
+3. **Same phone number** — a different one is not in the meetings group.
+Check state with `GET {apiUrl}/waInstance{id}/getStateInstance/{token}` and confirm
+a real send with `app_settings.wa_health` (`ok:true` = a reply actually went out).
+
 **Edge functions have no CLI on this machine.** Deploy them with the Supabase MCP
 `deploy_edge_function` (project `uhmzdhtjabhbcyslovfk`) — it replaces ALL files, so
 send every file, and keep `verify_jwt: false` on `wa-webhook` (Green API cannot send
