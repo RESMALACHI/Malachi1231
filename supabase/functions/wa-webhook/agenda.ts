@@ -110,18 +110,32 @@ export function ilDayWindow(offsetDays: number, now = new Date()) {
   return { start: ilMidnightUtc(a.y, a.mo, a.d), end: ilMidnightUtc(b.y, b.mo, b.d), date: a }
 }
 
-/** The [start, end) UTC window covering the current Israel-local month. */
-export function ilMonthWindow(now = new Date()) {
-  const a = ilDate(0, now)
-  const nextMo = a.mo === 12 ? 1 : a.mo + 1
-  const nextY = a.mo === 12 ? a.y + 1 : a.y
-  return {
-    start: ilMidnightUtc(a.y, a.mo, 1),
-    end: ilMidnightUtc(nextY, nextMo, 1),
-    y: a.y,
-    mo: a.mo,
-    today: a.d,
+/**
+ * The [start, end) UTC window covering the Israel-local dates from..to
+ * INCLUSIVE, given as YYYY-MM-DD. Invalid input returns null rather than a
+ * silently wrong window. Used by ".בוט" so the model can ask for any range.
+ */
+export function ilRangeUtc(from: string, to: string): { start: Date; end: Date } | null {
+  const parse = (s: string) => {
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(s || '').trim())
+    if (!m) return null
+    const [y, mo, d] = [+m[1], +m[2], +m[3]]
+    if (mo < 1 || mo > 12 || d < 1 || d > 31) return null
+    return { y, mo, d }
   }
+  const a = parse(from)
+  const b = parse(to)
+  if (!a || !b) return null
+  const start = ilMidnightUtc(a.y, a.mo, a.d)
+  // end is exclusive: midnight of the day AFTER `to`.
+  const endBase = new Date(Date.UTC(b.y, b.mo - 1, b.d + 1))
+  const end = ilMidnightUtc(
+    endBase.getUTCFullYear(),
+    endBase.getUTCMonth() + 1,
+    endBase.getUTCDate()
+  )
+  if (end <= start) return null
+  return { start, end }
 }
 
 const timeFmt = new Intl.DateTimeFormat('en-GB', {
