@@ -241,6 +241,68 @@
 }
 .tv-confetti { animation: tv-confetti linear forwards; }
 
+/* ── the other seven milestone shows (see components/tv/Celebration.jsx) ──
+   Every one of these animates transform/opacity only, so the whole set stays
+   on the compositor and the board keeps its frame rate on the office PC. */
+
+/* fireworks + emoji burst — thrown outwards along --dx/--dy, then gone */
+@keyframes tv-spark {
+  0% { transform: translate(0, 0) scale(1); opacity: 0; }
+  10% { opacity: 1; }
+  100% { transform: translate(var(--dx), var(--dy)) scale(0.2); opacity: 0; }
+}
+.tv-spark { animation: tv-spark 1.5s cubic-bezier(0.12, 0.8, 0.3, 1) both; }
+
+@keyframes tv-burst {
+  0% { transform: translate(-50%, -50%) scale(0.2) rotate(0deg); opacity: 0; }
+  12% { opacity: 1; }
+  100% {
+    transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy))) scale(1.15) rotate(200deg);
+    opacity: 0;
+  }
+}
+.tv-burst { animation: tv-burst 2.2s cubic-bezier(0.16, 0.85, 0.3, 1) both; }
+
+/* shockwave — a bigger, slower ring than the hero's tv-ring */
+@keyframes tv-shock {
+  0% { transform: scale(0.15); opacity: 0.9; }
+  100% { transform: scale(6); opacity: 0; }
+}
+.tv-shock { animation: tv-shock 2.4s cubic-bezier(0.22, 1, 0.36, 1) both; }
+
+/* stars streaking down the diagonal */
+@keyframes tv-starfall {
+  0% { transform: translate(0, -14vh) rotate(0deg); opacity: 0; }
+  10% { opacity: 1; }
+  100% { transform: translate(-26vw, 116vh) rotate(340deg); opacity: 0.9; }
+}
+.tv-starfall { animation: tv-starfall linear forwards; }
+
+/* bubbles rising off the bottom edge, drifting as they go */
+@keyframes tv-bubble {
+  0% { transform: translate(0, 108vh) scale(0.7); opacity: 0; }
+  12% { opacity: 1; }
+  100% { transform: translate(6vw, -18vh) scale(1.15); opacity: 0; }
+}
+.tv-bubble { animation: tv-bubble ease-in-out forwards; }
+
+/* light sweeping across the wall, right to left */
+@keyframes tv-beam {
+  0% { transform: translateX(130vw) skewX(-14deg); opacity: 0; }
+  15% { opacity: 1; }
+  85% { opacity: 1; }
+  100% { transform: translateX(-90vw) skewX(-14deg); opacity: 0; }
+}
+.tv-beam { animation: tv-beam cubic-bezier(0.5, 0, 0.5, 1) forwards; }
+
+/* coins falling and flipping */
+@keyframes tv-coin {
+  0% { transform: translateY(-14vh) rotateY(0deg); opacity: 0; }
+  8% { opacity: 1; }
+  100% { transform: translateY(114vh) rotateY(1440deg); opacity: 1; }
+}
+.tv-coin { animation: tv-coin linear forwards; }
+
 /* a mode swapping in — rises and settles */
 @keyframes tv-rise {
   0% { opacity: 0; transform: translateY(28px) scale(0.985); }

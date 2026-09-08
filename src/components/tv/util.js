@@ -50,14 +50,43 @@ export function displayName(item) {
   return cleaned && cleaned !== '(ללא פרטים)' ? cleaned : String(item.who || 'פגישה חדשה')
 }
 
-/** The milestones worth a full-screen celebration, in order. */
-export const MILESTONES = [5, 10, 15, 20, 25, 30, 35, 40, 50, 60, 75, 100, 125, 150]
+/** A full-screen celebration every this many meetings booked today. */
+export const MILESTONE_STEP = 3
 
-/** The highest milestone strictly between `prev` and `next`, or null. */
+/**
+ * The eight shows, in the order they unlock. Every third meeting fires the next
+ * one and the list then repeats — the point is that nobody on the floor has
+ * seen tonight's next one yet, which is a cheaper reason to make one more call
+ * than any leaderboard.
+ */
+export const CELEBRATIONS = [
+  { key: 'confetti', label: 'קונפטי', emoji: '🎉', color: '#fbbf24' },
+  { key: 'fireworks', label: 'זיקוקים', emoji: '🎆', color: '#f472b6' },
+  { key: 'shockwave', label: 'גל הלם', emoji: '💥', color: '#38bdf8' },
+  { key: 'starfall', label: 'גשם כוכבים', emoji: '⭐', color: '#facc15' },
+  { key: 'bubbles', label: 'בועות', emoji: '🫧', color: '#34d399' },
+  { key: 'beams', label: 'אלומות אור', emoji: '⚡', color: '#a78bfa' },
+  { key: 'coins', label: 'גשם מטבעות', emoji: '🪙', color: '#fcd34d' },
+  { key: 'burst', label: 'פיצוץ', emoji: '🔥', color: '#fb923c' },
+]
+
+/** Which show belongs to a milestone count. 3 → the first, 6 → the second… */
+export function celebrationFor(n) {
+  const level = Math.max(1, Math.round(n / MILESTONE_STEP))
+  return CELEBRATIONS[(level - 1) % CELEBRATIONS.length]
+}
+
+/**
+ * The highest multiple of MILESTONE_STEP in (prev, next], or null.
+ *
+ * Takes the HIGHEST rather than firing once per step, so a poll that catches
+ * three bookings at once shows one celebration for the number now on the board
+ * instead of a queue of three nobody can read.
+ */
 export function milestoneCrossed(prev, next) {
-  let hit = null
-  for (const m of MILESTONES) {
-    if (m > prev && m <= next) hit = m
-  }
-  return hit
+  const from = Math.max(0, Math.floor(prev))
+  const to = Math.floor(next)
+  if (to <= from) return null
+  const hit = Math.floor(to / MILESTONE_STEP) * MILESTONE_STEP
+  return hit > from ? hit : null
 }

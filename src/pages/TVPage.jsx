@@ -15,10 +15,10 @@ import {
 import { LogoMark } from '../components/Logo'
 import BoardView from '../components/tv/BoardView'
 import LeadersView from '../components/tv/LeadersView'
-import Confetti from '../components/tv/Confetti'
+import Celebration from '../components/tv/Celebration'
 import MilestoneBanner from '../components/tv/MilestoneBanner'
 import { getTvBoards, getDailyPace, mergeFeed, leaderboardFrom, EMPTY_BOARD } from '../services/tvService'
-import { milestoneCrossed } from '../components/tv/util'
+import { celebrationFor, milestoneCrossed } from '../components/tv/util'
 import { initAudio, playChime } from '../lib/chime'
 
 const POLL_MS = 20_000 // how often the board re-reads the database
@@ -95,7 +95,9 @@ export default function TVPage() {
         const hit = milestoneCrossed(countRef.current, n)
         countRef.current = n
         if (hit) {
-          setMilestone({ n: hit, at: Date.now() })
+          // Which of the eight shows this level unlocks — the banner names the
+          // next one, so the floor always knows what three more meetings buys.
+          setMilestone({ n: hit, at: Date.now(), show: celebrationFor(hit) })
           if (soundRef.current) playChime('deal')
         }
       } else {
@@ -227,8 +229,8 @@ export default function TVPage() {
       )}
       {showMilestone && (
         <>
-          <Confetti key={`c-${milestone.at}`} />
-          <MilestoneBanner key={`b-${milestone.at}`} n={milestone.n} />
+          <Celebration key={`c-${milestone.at}`} show={milestone.show.key} />
+          <MilestoneBanner key={`b-${milestone.at}`} n={milestone.n} show={milestone.show} />
         </>
       )}
 
