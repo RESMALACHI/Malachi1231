@@ -92,7 +92,18 @@ pay.
 
 `wa-webhook` receives Green API webhooks. `.פגישה` in an allowed group →
 `parseMeeting.ts` → create a Google Calendar event via a **Service Account** JWT →
-routed to the zahar / ramat-gan calendar by the "יומן:" field. Also `.היום`/`.מחר`.
+routed to the zahar / ramat-gan calendar by the "יומן:" field. Also `.היום`/`.מחר`,
+and `.בוט <שאלה>` (`ask.ts`) — a snapshot of today / tomorrow / this month is built
+here and the model answers off that text alone; it never touches the database.
+Every reply starts with a marker in `BOT_REPLY_MARKERS` so the bot skips its own
+messages — add one for any new reply style.
+
+**Edge functions have no CLI on this machine.** Deploy them with the Supabase MCP
+`deploy_edge_function` (project `uhmzdhtjabhbcyslovfk`) — it replaces ALL files, so
+send every file, and keep `verify_jwt: false` on `wa-webhook` (Green API cannot send
+a JWT). Smoke-test a deploy without touching WhatsApp:
+`curl -X POST ".../wa-webhook?t=wrong" -d '{"typeWebhook":"incomingMessageReceived"}'`
+→ `{"ignored":"bad_token"}` means the module booted.
 Green API's free plan is flaky, so `wa-notification-consumer` + `wa-journal-poller`
 drain its HTTP queue / journals as a fallback. `wa_processed` dedupes.
 
