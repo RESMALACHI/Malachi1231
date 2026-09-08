@@ -12,6 +12,7 @@
 import { createClient } from 'jsr:@supabase/supabase-js@2'
 import { parseMeeting, toCalendarEvent, TRIGGER } from './parseMeeting.ts'
 import { buildAgenda } from './agenda.ts'
+import { ASK_HELP, TRIGGER_ASK, buildAnswer } from './ask.ts'
 import { resolveMentions } from './mentions.ts'
 
 // Read-only agenda commands: the day's meetings, grouped by type, in time order.
@@ -45,12 +46,13 @@ const HELP_TEXT =
   '━━━━━━━━━━\n' +
   '🗂️ *פקודות נוספות:*\n' +
   '• *.היום* — כל פגישות היום\n' +
-  '• *.מחר* — כל פגישות מחר'
+  '• *.מחר* — כל פגישות מחר\n' +
+  '• *.בוט* — שאלו שאלה על הנתונים'
 
 // Every reply the bot sends begins with one of these. Used to recognise — and
 // skip — the bot's own messages, so it can accept a ".פגישה" written from ANY
 // device (incoming / outgoing / API) without ever re-processing itself.
-const BOT_REPLY_MARKERS = ['📅', '✅', '❌', '⚠️']
+const BOT_REPLY_MARKERS = ['📅', '✅', '❌', '⚠️', '🤖']
 
 // Google Maps links for the branches, dropped into the client's confirmation so
 // they can navigate with one tap instead of copying an address into an app.
@@ -113,9 +115,10 @@ function trace(event: string, details: Record<string, unknown> = {}) {
   console.log('[wa-webhook]', JSON.stringify({ event, ...details }))
 }
 
-function commandKind(text: string): 'meeting' | 'today' | 'tomorrow' | null {
+function commandKind(text: string): 'meeting' | 'today' | 'tomorrow' | 'ask' | null {
   if (text.startsWith(TRIGGER_TODAY)) return 'today'
   if (text.startsWith(TRIGGER_TOMORROW)) return 'tomorrow'
+  if (text.startsWith(TRIGGER_ASK)) return 'ask'
   if (text.startsWith(TRIGGER)) return 'meeting'
   return null
 }
@@ -365,7 +368,7 @@ Deno.serve(async (req) => {
     const command = commandKind(text)
     const wantsToday = command === 'today'
     const wantsTomorrow = command === 'tomorrow'
-    const wantsMeeting = command === 'meeting'
+    const wantsAsk = command === 'ask'
     if (!command) {
       trace('ignored', {
         reason: 'no_trigger',
@@ -413,6 +416,14 @@ Deno.serve(async (req) => {
     if (wantsToday || wantsTomorrow) {
       await reply(await buildAgenda(admin, wantsTomorrow ? 1 : 0))
       return ok({ handled: wantsTomorrow ? 'agenda_tomorrow' : 'agenda_today' })
+    }
+
+    // ".בוט <שאלה>" — read-only too. The model is handed a snapshot and the
+    // question; it has no database access and cannot change anything.
+    if (wantsAsk) {
+      const question = text.slice(TRIGGER_ASK.length).trim()
+      await reply(question ? await buildAnswer(admin, question) : ASK_HELP)
+      return ok({ handled: question ? 'ask' : 'ask_help' })
     }
 
     // @mentions arrive as bare phone numbers. Resolve them to names BEFORE

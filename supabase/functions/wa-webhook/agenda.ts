@@ -34,7 +34,8 @@ const CONFIRMED = word('אישר|אישרה|אישרו|מאשר|מאשרת|מא�
 const CANCELLED = word('בוטל|בוטלה|מבוטל|מבוטלת')
 const NO_ANSWER = /ללא מענה|לא ענה|אין מענה|לא עונה/u
 // Calendar blocks ("לא לקבוע לאיציק", "תפוס איציק") — holds, not meetings.
-const BLOCK = /לא לקבוע|תפוס/u
+// Exported so ".בוט" counts the same things this agenda shows.
+export const BLOCK = /לא לקבוע|תפוס/u
 
 export interface AgendaRow {
   title: string | null
@@ -107,6 +108,20 @@ export function ilDayWindow(offsetDays: number, now = new Date()) {
   const a = ilDate(offsetDays, now)
   const b = ilDate(offsetDays + 1, now)
   return { start: ilMidnightUtc(a.y, a.mo, a.d), end: ilMidnightUtc(b.y, b.mo, b.d), date: a }
+}
+
+/** The [start, end) UTC window covering the current Israel-local month. */
+export function ilMonthWindow(now = new Date()) {
+  const a = ilDate(0, now)
+  const nextMo = a.mo === 12 ? 1 : a.mo + 1
+  const nextY = a.mo === 12 ? a.y + 1 : a.y
+  return {
+    start: ilMidnightUtc(a.y, a.mo, 1),
+    end: ilMidnightUtc(nextY, nextMo, 1),
+    y: a.y,
+    mo: a.mo,
+    today: a.d,
+  }
 }
 
 const timeFmt = new Intl.DateTimeFormat('en-GB', {
