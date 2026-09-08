@@ -117,6 +117,49 @@ Deno.serve(async (req) => {
       return json({ ok: true })
     }
 
+    // Point the BOT at a different Green API instance — what you need when the
+    // company opens a new Green API account.
+    //
+    // Deliberately a SEPARATE action from 'save', which must keep refusing
+    // shared:true: an agent saving their personal number must never be able to
+    // take over the company's. This one is reached from the ניהול page only.
+    // Before it existed the only way to swap the instance was editing the
+    // whatsapp_instances row by hand, which is a bad thing to be doing with an
+    // API token at the moment the bot is already down.
+    if (action === 'save_shared') {
+      const idInstance = String(body.idInstance || '').trim()
+      const apiToken = String(body.apiToken || '').trim()
+      const apiUrl = String(body.apiUrl || 'https://api.green-api.com').trim()
+      if (!idInstance || !apiToken) return json({ error: 'missing_credentials' }, 400)
+      if (!credsLookValid(idInstance, apiToken)) {
+        return json({ error: 'invalid_credentials_format' }, 400)
+      }
+      const { error } = await admin.from('whatsapp_instances').upsert({
+        agent_name: SHARED_KEY,
+        id_instance: idInstance,
+        api_token: apiToken,
+        api_url: apiUrl,
+        status: 'notAuthorized',
+        updated_at: new Date().toISOString(),
+      })
+      if (error) return json({ error: 'save_failed', detail: error.message }, 500)
+      // A fresh instance starts clean — the old quota complaint is history, and
+      // leaving the red banner up would just train people to ignore it.
+      try {
+        await admin.from('app_settings').upsert(
+          {
+            key: 'wa_health',
+            value: { ok: true, reason: null, at: new Date().toISOString() },
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: 'key' }
+        )
+      } catch {
+        /* the credentials are saved; the banner can wait for the next send */
+      }
+      return json({ ok: true })
+    }
+
     if (action === 'reset') {
       if (isShared) return json({ error: 'forbidden' }, 403)
       await admin.from('whatsapp_instances').delete().eq('agent_name', agentName)

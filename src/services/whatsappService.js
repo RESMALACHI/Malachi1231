@@ -50,6 +50,14 @@ export const getSummaryState = () => call({ action: 'state', shared: true })
 /** QR for linking the shared summary WhatsApp (admin does this once). */
 export const getSummaryQr = () => call({ action: 'qr', shared: true })
 
+/**
+ * Point the BOT at a different Green API instance — for when the company opens
+ * a new Green API account. Admin-only in the UI (ניהול → ווצאפ הבוט); the
+ * per-agent `saveInstance` still refuses to touch this one.
+ */
+export const saveSummaryInstance = (idInstance, apiToken, apiUrl) =>
+  call({ action: 'save_shared', shared: true, idInstance, apiToken, apiUrl })
+
 /** Send the daily summary through the shared company WhatsApp. */
 export const sendSummary = (phone, message) =>
   call({ action: 'send', shared: true, phone, message })

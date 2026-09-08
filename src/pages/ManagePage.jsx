@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Navigate } from 'react-router-dom'
-import { Activity, Inbox, Layers, MapPin, Settings, Sparkles, Target, Users, Webhook, Zap } from 'lucide-react'
+import { Activity, Inbox, Layers, MapPin, MessageCircle, Settings, Sparkles, Target, Users, Webhook, Zap } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { isAdminAgent, pinFor } from '../lib/agents'
 import AgentsPanel from '../components/AgentsPanel'
@@ -8,6 +8,7 @@ import AutomationsPanel from '../components/AutomationsPanel'
 import BrainPanel from '../components/BrainPanel'
 import GoalsPanel from '../components/GoalsPanel'
 import OfficePanel from '../components/OfficePanel'
+import BotWhatsAppPanel from '../components/BotWhatsAppPanel'
 import LeadsInbox from '../components/LeadsInbox'
 import LeadsPanel from '../components/LeadsPanel'
 import PagesPanel from '../components/PagesPanel'
@@ -22,6 +23,7 @@ const SECTIONS = [
   { key: 'automations', label: 'אוטומציות', icon: Zap, hint: 'כאשר X קורה — המערכת פועלת לבד' },
   { key: 'goals', label: 'יעדים', icon: Target, hint: 'כמה פגישות ביום כל סוכן אמור לקבוע' },
   { key: 'office', label: 'מיקום המשרד', icon: MapPin, hint: 'לפתיחת סיכום יום אוטומטית ביציאה' },
+  { key: 'botwa', label: 'ווצאפ הבוט', icon: MessageCircle, hint: 'המופע שדרכו הבוט שולח הודעות' },
   { key: 'brain', label: 'מוח ה-AI', icon: Sparkles, hint: 'מה העוזר יודע ואיך הוא עונה' },
   { key: 'pages', label: 'עמודים', icon: Layers, hint: 'מה מופיע בתפריט לכולם' },
 ]
@@ -116,6 +118,7 @@ export default function ManagePage() {
         {section === 'automations' && <AutomationsPanel />}
         {section === 'goals' && <GoalsPanel />}
         {section === 'office' && <OfficePanel />}
+        {section === 'botwa' && <BotWhatsAppPanel />}
         {section === 'brain' && <BrainPanel />}
         {section === 'pages' && <PagesPanel />}
       </section>
