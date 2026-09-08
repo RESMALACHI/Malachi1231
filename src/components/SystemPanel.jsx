@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Activity, Inbox, RefreshCw, Users, Webhook } from 'lucide-react'
+import { Activity, Inbox, MessageCircleOff, RefreshCw, Users, Webhook } from 'lucide-react'
 import { supabase } from '../lib/supabaseClient'
 import { AGENTS } from '../lib/agents'
 import Spinner from './Spinner'
@@ -32,7 +32,7 @@ export default function SystemPanel() {
     const midnight = new Date()
     midnight.setHours(0, 0, 0, 0)
 
-    const [lastMeeting, unassigned, leadsToday, freshLeads, sources, wa] = await Promise.all([
+    const [lastMeeting, unassigned, leadsToday, freshLeads, sources, wa, waHealth] = await Promise.all([
       supabase.from('meetings').select('created_at')
         .order('created_at', { ascending: false }).limit(1).maybeSingle(),
       supabase.from('meetings').select('id', { count: 'exact', head: true }).is('agent_name', null),
@@ -41,6 +41,7 @@ export default function SystemPanel() {
       supabase.from('leads').select('id', { count: 'exact', head: true }).eq('status', 'new'),
       supabase.from('lead_sources').select('id', { count: 'exact', head: true }).eq('active', true),
       supabase.from('whatsapp_instances').select('id', { count: 'exact', head: true }),
+      supabase.from('app_settings').select('value').eq('key', 'wa_health').maybeSingle(),
     ])
 
     setStat({
@@ -50,6 +51,7 @@ export default function SystemPanel() {
       freshLeads: freshLeads.count || 0,
       sources: sources.count || 0,
       wa: wa.count || 0,
+      waHealth: waHealth.data?.value || null,
     })
   }, [])
 
@@ -69,8 +71,38 @@ export default function SystemPanel() {
     ? Date.now() - new Date(stat.lastSync).getTime() > 60 * 60 * 1000
     : true
 
+  // The bot cannot report over WhatsApp that WhatsApp is down, so it writes
+  // what happened to app_settings.wa_health and this is where it surfaces.
+  // The distinction matters enormously to whoever reads it: a failed send does
+  // NOT mean a lost meeting — ".פגישה" still creates the calendar event.
+  const waBad = stat.waHealth && stat.waHealth.ok === false
+  const WA_REASON = {
+    quota_exceeded: 'המכסה של ווצאפ (Green API) נגמרה — צריך לחדש את החבילה.',
+    no_instance: 'אין מכשיר ווצאפ מחובר לבוט.',
+    network_error: 'ווצאפ לא ענה. ייתכן שזו תקלה זמנית.',
+  }
+
   return (
     <div className="space-y-3">
+      {waBad && (
+        <div className="rounded-2xl border border-red-300 bg-red-50 p-4">
+          <div className="flex items-center gap-3">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-red-600 text-white">
+              <MessageCircleOff className="h-5 w-5" aria-hidden="true" />
+            </span>
+            <div className="min-w-0">
+              <p className="font-bold text-red-900">הבוט לא מצליח לשלוח הודעות בווצאפ</p>
+              <p className="text-xs leading-relaxed text-red-800">
+                {WA_REASON[stat.waHealth.reason] ||
+                  `השליחה נכשלה (${stat.waHealth.reason || 'סיבה לא ידועה'}).`}{' '}
+                <b>הפגישות עצמן נוצרות כרגיל</b> — פקודת <b>.פגישה</b> ממשיכה ליצור את
+                האירוע ביומן, רק הודעת האישור בקבוצה לא נשלחת. נכשל לאחרונה {ago(stat.waHealth.at)}.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* The health line */}
       <div
         className={`rounded-2xl border p-4 ${

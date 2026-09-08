@@ -115,6 +115,38 @@ function trace(event: string, details: Record<string, unknown> = {}) {
   console.log('[wa-webhook]', JSON.stringify({ event, ...details }))
 }
 
+/**
+ * Remember whether the bot can actually SEND, in app_settings.wa_health.
+ *
+ * A failed send is invisible by definition — we cannot tell the group over
+ * WhatsApp that WhatsApp is not working. That cost a day: Green API's quota ran
+ * out, every ".פגישה" still parsed and still created its calendar event, and
+ * the floor saw no ✅ come back and reported "the bot is broken". The meetings
+ * were all there. Only the confirmation could not go out.
+ *
+ * The ניהול page reads this row, so the next time it happens somebody is told
+ * what actually broke instead of guessing.
+ */
+async function noteSendHealth(
+  admin: any,
+  ok: boolean,
+  reason: string | null = null,
+  detail: string | null = null
+) {
+  try {
+    await admin.from('app_settings').upsert(
+      {
+        key: 'wa_health',
+        value: { ok, reason, detail, at: new Date().toISOString() },
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: 'key' }
+    )
+  } catch {
+    /* health bookkeeping must never break the thing it is watching */
+  }
+}
+
 function commandKind(text: string): 'meeting' | 'today' | 'tomorrow' | 'ask' | null {
   if (text.startsWith(TRIGGER_TODAY)) return 'today'
   if (text.startsWith(TRIGGER_TOMORROW)) return 'tomorrow'
@@ -332,6 +364,15 @@ Deno.serve(async (req) => {
 
     const body = await req.json().catch(() => ({}))
     const T = body.typeWebhook
+
+    // Green API shouts this when the instance has spent its allowance. It is
+    // the only warning we get that replies are about to start disappearing, so
+    // it is recorded rather than lumped in with "not a message" below.
+    if (T === 'quotaExceeded') {
+      trace('quota_exceeded')
+      await noteSendHealth(admin, false, 'quota_exceeded')
+      return ok({ ignored: 'quota_exceeded' })
+    }
     // Accept every flavour of text message: from other participants ('incoming'),
     // from this phone ('outgoing'), and API-sent ('outgoingAPI') — someone may
     // write ".פגישה" from any device. The bot's OWN replies are filtered out by
@@ -402,14 +443,32 @@ Deno.serve(async (req) => {
       .eq('agent_name', '__summary__')
       .maybeSingle()
 
+    // Sends, and records whether it worked. The result used to be thrown away
+    // entirely — see noteSendHealth for what that cost.
     const reply = async (message: string) => {
-      if (!inst) return
+      if (!inst) {
+        trace('send_failed', { status: 'no_instance' })
+        await noteSendHealth(admin, false, 'no_instance')
+        return
+      }
       const base = `${inst.api_url.replace(/\/$/, '')}/waInstance${inst.id_instance}`
-      await fetch(`${base}/sendMessage/${inst.api_token}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ chatId, message }),
-      }).catch(() => {})
+      try {
+        const res = await fetch(`${base}/sendMessage/${inst.api_token}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ chatId, message }),
+        })
+        if (!res.ok) {
+          const detail = (await res.text().catch(() => '')).slice(0, 200)
+          trace('send_failed', { status: res.status })
+          await noteSendHealth(admin, false, `http_${res.status}`, detail)
+          return
+        }
+        await noteSendHealth(admin, true)
+      } catch {
+        trace('send_failed', { status: 'network_error' })
+        await noteSendHealth(admin, false, 'network_error')
+      }
     }
 
     // ".היום" / ".מחר" — read-only day agenda. Nothing is created or changed.
