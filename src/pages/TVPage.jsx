@@ -19,13 +19,13 @@ import Celebration from '../components/tv/Celebration'
 import MilestoneBanner from '../components/tv/MilestoneBanner'
 import { getTvBoards, getDailyPace, mergeFeed, leaderboardFrom, EMPTY_BOARD } from '../services/tvService'
 import { celebrationFor, milestoneCrossed } from '../components/tv/util'
-import { initAudio, playChime } from '../lib/chime'
+import { initAudio, playChime, playMilestoneMusic, stopMilestoneMusic } from '../lib/chime'
 
 const POLL_MS = 20_000 // how often the board re-reads the database
 const PACE_MS = 5 * 60_000 // the 14-day average barely moves — refresh it lazily
 const ROTATE_MS = 26_000 // seconds each mode holds the screen
 const CELEBRATE_MS = 7_000 // the "just happened" glow on the hero
-const MILESTONE_MS = 6_500 // the full-screen milestone celebration
+const MILESTONE_MS = 8_000 // the full-screen milestone — matches the song's length
 
 const MODES = [
   { key: 'today', label: 'היום', icon: Sun },
@@ -98,7 +98,9 @@ export default function TVPage() {
           // Which of the eight shows this level unlocks — the banner names the
           // next one, so the floor always knows what three more meetings buys.
           setMilestone({ n: hit, at: Date.now(), show: celebrationFor(hit) })
-          if (soundRef.current) playChime('deal')
+          // The song, not the chime — a level is the one moment worth the room
+          // looking up, and it runs exactly as long as the banner.
+          if (soundRef.current) playMilestoneMusic()
         }
       } else {
         countRef.current = n
@@ -172,6 +174,9 @@ export default function TVPage() {
       if (ok) playChime('meeting')
     } else {
       setSoundOn(false)
+      // Someone reaching for the mute button mid-song means now, not eight
+      // seconds from now.
+      stopMilestoneMusic()
     }
   }
   const toggleFs = () => {
