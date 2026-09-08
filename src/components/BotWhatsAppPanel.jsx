@@ -29,6 +29,11 @@ export default function BotWhatsAppPanel() {
   const [state, setState] = useState(null)
   const [idInstance, setId] = useState('')
   const [apiToken, setToken] = useState('')
+  // Green API issues a per-instance host now ("https://7105.api.greenapi.com"),
+  // not the one shared "api.green-api.com" everyone used to get. Saving the old
+  // default against a new instance points the bot at a server that has never
+  // heard of it, so this is a field and not an assumption.
+  const [apiUrl, setUrl] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [done, setDone] = useState(false)
@@ -57,9 +62,10 @@ export default function BotWhatsAppPanel() {
     }
     setSaving(true)
     try {
-      await saveSummaryInstance(idInstance.trim(), apiToken.trim())
+      await saveSummaryInstance(idInstance.trim(), apiToken.trim(), apiUrl.trim() || undefined)
       setId('')
       setToken('')
+      setUrl('')
       setDone(true)
       await load()
     } catch (err) {
@@ -142,6 +148,23 @@ export default function BotWhatsAppPanel() {
             className={FIELD}
             placeholder="a1b2c3d4e5f6…"
           />
+        </div>
+
+        <div>
+          <label className="mb-1 block text-xs font-bold text-slate-600">
+            apiUrl <span className="font-normal text-slate-400">(העתיקו מ־Green API)</span>
+          </label>
+          <input
+            value={apiUrl}
+            onChange={(e) => setUrl(e.target.value)}
+            dir="ltr"
+            className={FIELD}
+            placeholder="https://7105.api.greenapi.com"
+          />
+          <p className="mt-1 text-[11px] leading-relaxed text-slate-500">
+            לכל מופע חדש יש כתובת משלו. אם תשאירו ריק תישמר הכתובת הישנה
+            (api.green-api.com) והבוט יפנה לשרת שלא מכיר את המופע.
+          </p>
         </div>
 
         {error && (
