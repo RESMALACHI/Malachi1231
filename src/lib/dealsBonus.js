@@ -16,9 +16,13 @@
 //     Collection decides whether a project qualifies; once it does, its full
 //     sale price enters the bracket calculation.
 //
-//   • The collection bonus is a separate, additional payment, unlocked only
-//     once the month's sales reach ₪100,000: 60% collected → ₪1,000,
-//     70% → ₪1,500, 80% → ₪2,000.
+//   • The collection bonus is a separate, additional payment. Its percentage is
+//       collected ÷ (qualifying projects + single courses) × 100
+//     and the same denominator is what has to reach ₪100,000 to unlock it at
+//     all: 60% collected → ₪1,000, 70% → ₪1,500, 80% → ₪2,000.
+//     Both sides of that fraction cover the SAME deals, so the rate can never
+//     exceed 100% — a project that failed to qualify is absent from the top as
+//     well as the bottom, and cannot flatter the number it is excluded from.
 //
 //   • Every bonus is conditional on at least 10 meetings in the month.
 //
@@ -34,7 +38,7 @@ export const SALES_BRACKETS = [
   { min: 50000, rate: 0.02 },
 ]
 
-/** Collected ÷ sold → flat bonus. Only above COLLECTION_BONUS_MIN_SALES. */
+/** Collection rate → flat bonus. Only above COLLECTION_BONUS_MIN_SALES. */
 export const COLLECTION_BRACKETS = [
   { min: 0.8, amount: 2000 },
   { min: 0.7, amount: 1500 },
@@ -128,12 +132,17 @@ export function calcDealBonus(deals = [], attendedMeetings = 0) {
   const coursesBonus = courseLines.reduce((s, c) => s + c.bonus, 0)
 
   // ── Collection bonus ──
-  // Measured across every project of the month, not only the qualifying ones:
-  // it rewards how much of what you sold you actually brought in.
-  const allSales = projects.reduce((s, d) => s + num(d.amount), 0)
-  const allCollected = projects.reduce((s, d) => s + num(d.collected), 0)
-  const collectionRate = allSales > 0 ? allCollected / allSales : 0
-  const collectionUnlocked = allSales >= COLLECTION_BONUS_MIN_SALES
+  // The base is the month's counting business — the projects that qualified for
+  // the percentage table, plus every single course — and the top is what was
+  // collected against those same deals. A project that did not qualify is out of
+  // both, so it neither drags the rate down nor props it up.
+  const coursesSales = courses.reduce((s, d) => s + num(d.amount), 0)
+  const collectionBase = qualifiedSales + coursesSales
+  const collectionCollected =
+    qualified.reduce((s, d) => s + num(d.collected), 0) +
+    courses.reduce((s, d) => s + num(d.collected), 0)
+  const collectionRate = collectionBase > 0 ? collectionCollected / collectionBase : 0
+  const collectionUnlocked = collectionBase >= COLLECTION_BONUS_MIN_SALES
   const collectionBracket = collectionUnlocked
     ? COLLECTION_BRACKETS.find((b) => collectionRate >= b.min) || null
     : null
@@ -157,8 +166,9 @@ export function calcDealBonus(deals = [], attendedMeetings = 0) {
     salesBonus,
     courseLines,
     coursesBonus,
-    allSales,
-    allCollected,
+    coursesSales,
+    collectionBase,
+    collectionCollected,
     collectionRate,
     collectionUnlocked,
     collectionBracket,
@@ -170,6 +180,6 @@ export function calcDealBonus(deals = [], attendedMeetings = 0) {
     nextBracket,
     nextGain,
     toNextSales: nextBracket ? nextBracket.min - qualifiedSales : 0,
-    toCollectionUnlock: Math.max(0, COLLECTION_BONUS_MIN_SALES - allSales),
+    toCollectionUnlock: Math.max(0, COLLECTION_BONUS_MIN_SALES - collectionBase),
   }
 }

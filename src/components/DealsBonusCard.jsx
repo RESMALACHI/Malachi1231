@@ -179,6 +179,11 @@ function DetailsModal({ b, monthLabel, onClose }) {
                   ) : (
                     <Lock className="ms-1.5 inline h-3 w-3 text-slate-300" aria-hidden="true" />
                   )}
+                  {/* The fraction itself. An agent querying their pay should be
+                      able to check the number without asking anyone. */}
+                  <span className="mt-0.5 block text-[10px] font-normal text-slate-400" dir="ltr">
+                    {formatIls(b.collectionCollected)} / {formatIls(b.collectionBase)}
+                  </span>
                 </span>
                 <span
                   className={`tabular-nums ${
@@ -215,7 +220,8 @@ function DetailsModal({ b, monthLabel, onClose }) {
           )}
           {!b.collectionUnlocked && b.toCollectionUnlock > 0 && (
             <Note icon={Lock} tone="bg-slate-50 text-slate-600">
-              בונוס הגבייה נפתח מ-100,000 ₪ מכירות — חסרים <b>{formatIls(b.toCollectionUnlock)}</b>.
+              בונוס הגבייה נפתח מ-100,000 ₪ בפרויקטים מזכים וקורסים בודדים — חסרים{' '}
+              <b>{formatIls(b.toCollectionUnlock)}</b>.
             </Note>
           )}
           {b.nextBracket && b.nextGain > 0 && (
