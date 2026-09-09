@@ -420,33 +420,38 @@ const firstOf = (ms: Mention[]) =>
   ms.sort((a, b) => Number(b.inTitle) - Number(a.inTitle) || a.at - b.at)[0].agent
 
 /**
- * The agent a meeting belongs to, or null if nobody is named at all.
+ * The agent a meeting belongs to, or null.
  *
- * Three tiers, and the order between them is the whole fix.
+ * ONE RULE: somebody has to be LABELLED as having booked it — "מתאם הפגישה: X",
+ * "מנהלת פגישה: X". A name that merely appears somewhere in the event is not an
+ * owner, and an event with no label belongs to nobody.
+ *
+ * This used to guess. Two more tiers ran underneath: any unlabelled name won,
+ * and failing that the מבצע was credited. Guessing made sense while half the
+ * calendar was typed by hand — but every agent now books through ".פגישה",
+ * which always writes the מתאם line, so the only events the guess still fires
+ * on are the ones it gets wrong. Measured over the last 75 days: of 522 events
+ * it changed 85, ALL of them hand-typed June/July meetings, and none from
+ * August onwards except the bug below.
+ *
+ * The bug it fixes: "איציק תפוס" is a block on a calendar, not a meeting. It
+ * names an agent and nothing else, so the old tier 2 filed it as איציק's
+ * meeting — inflating his count and putting a blocker on the wall board. Under
+ * this rule it is unlabelled, therefore nobody's, which is what it is.
+ *
+ * NOTHING IS RECLASSIFIED. agent_name is written once, at insert, and the
+ * update path never touches it — so every meeting already assigned keeps its
+ * owner and its attendance mark. This governs new events only. A genuine
+ * hand-booked meeting still has a home: it lands in the Claim Yard, where it
+ * can be assigned by hand.
  */
 export function classifyAgent(ev: RawEvent, agents: AgentMatcher[]): string | null {
   const title = flatten(ev.summary)
   const rest = flatten(ev.description, ev.location, ev.organizer, ...ev.attendees)
   const all = [...mentionsIn(title, agents, true), ...mentionsIn(rest, agents, false)]
-  if (all.length === 0) return null
 
-  // 1. Somebody is labelled as having BOOKED it. Nothing outweighs that — this
-  //    is the tier the whole bug lived in, and it now runs before the others
-  //    instead of never running at all.
   const booked = all.filter((m) => m.role === 'coordinator')
-  if (booked.length) return firstOf(booked)
-
-  // 2. No label anywhere. Then an unlabelled name beats one that is explicitly
-  //    only the performer: "מבצע הפגישה: ודיע" next to a plain "מרים" is מרים's.
-  const plain = all.filter((m) => m.role === 'plain')
-  if (plain.length) return firstOf(plain)
-
-  // 3. The מבצע is the ONLY agent on the whole event. Credit them —
-  //    deliberately, and only here. Hundreds of the צח"ר meetings name one
-  //    person and no coordinator at all, and emptying those into the Claim Yard
-  //    would invent a problem to solve a different one. Tier 1 guarantees a
-  //    named מתאם always wins; this tier only says one named person beats none.
-  return firstOf(all)
+  return booked.length ? firstOf(booked) : null
 }
 
 /** The calendar's display name (X-WR-CALNAME) from an .ics document. */

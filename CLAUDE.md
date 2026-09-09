@@ -78,8 +78,23 @@ There is no way to recreate the DB from git. Be careful with any schema change.
 ## Data flow (meetings)
 
 Central Google Calendars → secret iCal feeds (`ICAL_URLS`) → `calendar-feed` /
-`sync-meetings` edge fns parse the `.ics`, classify each event to an agent by name
-aliases (**מתאם/coordinator wins over מבצע/performer**), write to `meetings`.
+`sync-meetings` edge fns parse the `.ics`, classify each event to an agent, write
+to `meetings`.
+
+**Ownership needs an explicit label.** A meeting is assigned only when something in
+the event reads "מתאם הפגישה: X" / "מנהלת פגישה: X" — the line `.פגישה` always
+writes. A name merely appearing in the text assigns nothing, and an event with no
+label belongs to nobody and lands in the Claim Yard, where it can be assigned by
+hand. This replaced a 3-tier guess in Sept 2026: once every agent had moved to
+`.פגישה`, the guess only ever fired on things like "איציק תפוס" — a calendar block
+filed as איציק's meeting. `classifyAgent` exists TWICE (calendar-feed/index.ts and
+sync-meetings/feed.ts) and the two must stay identical, or the manual "סנכרן"
+button and the cron would disagree about who owns a meeting.
+
+**`agent_name` is written once, at INSERT, and never recomputed** — the update path
+deliberately omits it so a manual Claim Yard assignment survives the next sync. The
+cost: an event the sync caught before its details were filled in stays unassigned
+for ever.
 `sync-meetings` runs on pg_cron (~5 min); the client's `syncService.js` mirrors the
 same logic for the manual "סנכרן" button. **Deletions happen only when every feed
 answered** — a feed that didn't respond means "keep", because attendance marks drive
@@ -111,7 +126,8 @@ Three things bite, in this order:
 Check state with `GET {apiUrl}/waInstance{id}/getStateInstance/{token}` and confirm
 a real send with `app_settings.wa_health` (`ok:true` = a reply actually went out).
 
-**Edge functions have no CLI on this machine.** Deploy them with the Supabase MCP
+**Edge functions: deploy via MCP.** `npx supabase@latest` does run here (2.117.0)
+but is NOT logged in and `supabase login` needs a browser, so use the Supabase MCP
 `deploy_edge_function` (project `uhmzdhtjabhbcyslovfk`) — it replaces ALL files, so
 send every file, and keep `verify_jwt: false` on `wa-webhook` (Green API cannot send
 a JWT). Smoke-test a deploy without touching WhatsApp:
