@@ -20,6 +20,8 @@ import {
   Plus,
   Trash2,
   X,
+  Eye,
+  ListOrdered,
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { WA_TEMPLATES, toWaNumber, BRANCHES } from '../lib/waTemplates'
@@ -41,6 +43,7 @@ import {
   resetInstance,
   credsLookValid,
 } from '../services/whatsappService'
+import FlowBuilder from '../components/wa/FlowBuilder'
 
 const ERR_TEXT = {
   bad_credentials: 'הפרטים שהוזנו שגויים — ה־idInstance או ה־Token לא נכונים.',
@@ -415,7 +418,7 @@ function TemplateEditor({ agentName, editing, setEditing, onSaved }) {
 
 
 /* ── 3. Connected: the sending interface (automatic) ──────────────── */
-function SenderInterface({ agentName, onDisconnect }) {
+function SenderInterface({ agentName, onDisconnect, demo }) {
   const [activeKey, setActiveKey] = useState(WA_TEMPLATES[0].key)
   const [phone, setPhone] = useState('')
   const [values, setValues] = useState({})
@@ -458,6 +461,12 @@ function SenderInterface({ agentName, onDisconnect }) {
 
   const send = async () => {
     if (!canSend) return
+    // The demo tour reaches this screen without a connected number. Stopping
+    // here rather than at the API is the only version that cannot misfire.
+    if (demo) {
+      setToast({ ok: false, text: 'מצב הדגמה — לא נשלחה הודעה' })
+      return
+    }
     setSending(true)
     setToast(null)
     try {
@@ -475,16 +484,34 @@ function SenderInterface({ agentName, onDisconnect }) {
   return (
     <div className="flex flex-col gap-5">
       {/* Connected banner */}
-      <div className="flex items-center justify-between gap-2 rounded-2xl border border-green-200 bg-green-50 px-4 py-3">
-        <span className="flex items-center gap-2 text-sm font-bold text-green-800">
-          <ShieldCheck className="h-5 w-5" aria-hidden="true" />
-          הווצאפ שלך מחובר — ההודעות יישלחו אוטומטית מהמספר שלך
+      <div
+        className={`flex items-center justify-between gap-2 rounded-2xl border px-4 py-3 ${
+          demo ? 'border-amber-200 bg-amber-50' : 'border-green-200 bg-green-50'
+        }`}
+      >
+        <span
+          className={`flex items-center gap-2 text-sm font-bold ${
+            demo ? 'text-amber-900' : 'text-green-800'
+          }`}
+        >
+          {demo ? (
+            <Eye className="h-5 w-5" aria-hidden="true" />
+          ) : (
+            <ShieldCheck className="h-5 w-5" aria-hidden="true" />
+          )}
+          {demo
+            ? 'מצב הדגמה — אף הודעה לא תישלח'
+            : 'הווצאפ שלך מחובר — ההודעות יישלחו אוטומטית מהמספר שלך'}
         </span>
         <button
           onClick={onDisconnect}
-          className="inline-flex items-center gap-1.5 rounded-lg border border-green-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-green-800 transition hover:bg-green-100 active:scale-95"
+          className={`inline-flex shrink-0 items-center gap-1.5 rounded-lg border bg-white px-2.5 py-1.5 text-xs font-semibold transition active:scale-95 ${
+            demo
+              ? 'border-amber-300 text-amber-900 hover:bg-amber-100'
+              : 'border-green-300 text-green-800 hover:bg-green-100'
+          }`}
         >
-          <LogOut className="h-3.5 w-3.5" /> נתק
+          <LogOut className="h-3.5 w-3.5" /> {demo ? 'יציאה' : 'נתק'}
         </button>
       </div>
 
@@ -668,12 +695,62 @@ function SenderInterface({ agentName, onDisconnect }) {
   )
 }
 
+/* ── The connected area: manual sending, or the automatic sequence ── */
+
+/**
+ * Two jobs live behind this tab bar and they are genuinely different: one
+ * message to one client right now, versus the sequence every client walks
+ * through on their own. They were not worth two pages — an agent moves between
+ * them constantly — but they were not worth one screen either.
+ */
+function ReadyArea({ agentName, onDisconnect, demo }) {
+  const [tab, setTab] = useState('send') // 'send' | 'flow'
+
+  const TABS = [
+    { key: 'send', label: 'שליחה עכשיו', icon: Send },
+    { key: 'flow', label: 'התהליך שלי', icon: ListOrdered },
+  ]
+
+  return (
+    <div className="flex flex-col gap-5">
+      <div className="flex gap-1 rounded-2xl bg-slate-100 p-1">
+        {TABS.map((t) => {
+          const active = tab === t.key
+          return (
+            <button
+              key={t.key}
+              onClick={() => setTab(t.key)}
+              className={`flex flex-1 items-center justify-center gap-1.5 rounded-xl px-3 py-2.5 text-sm font-bold transition ${
+                active
+                  ? 'bg-white text-slate-900 shadow-sm'
+                  : 'text-slate-500 hover:text-slate-700'
+              }`}
+            >
+              <t.icon className="h-4 w-4 shrink-0" aria-hidden="true" />
+              {t.label}
+            </button>
+          )
+        })}
+      </div>
+
+      {tab === 'send' ? (
+        <SenderInterface agentName={agentName} onDisconnect={onDisconnect} demo={demo} />
+      ) : (
+        <FlowBuilder agentName={agentName} />
+      )}
+    </div>
+  )
+}
+
 /* ── Orchestrator ─────────────────────────────────────────────────── */
 export default function WhatsAppPage() {
   const { selectedAgent } = useAuth()
   const agentName = selectedAgent
   // phase: 'loading' | 'setup' | 'connect' | 'ready'
   const [phase, setPhase] = useState('loading')
+  // A look around the connected screens without a connected number. Sending is
+  // blocked at the button (see SenderInterface), not merely discouraged here.
+  const [demo, setDemo] = useState(false)
 
   const refresh = useCallback(async () => {
     try {
@@ -692,6 +769,15 @@ export default function WhatsAppPage() {
   }, [refresh])
 
   const disconnect = async () => {
+    // In the demo nothing was ever connected, so there is nothing to log out
+    // of — and calling logout would disconnect a real number that happens to
+    // be linked. Just leave the tour.
+    if (demo) {
+      setDemo(false)
+      setPhase('loading')
+      refresh()
+      return
+    }
     try {
       await logout(agentName)
     } catch {
@@ -727,7 +813,23 @@ export default function WhatsAppPage() {
         />
       )}
       {phase === 'ready' && (
-        <SenderInterface agentName={agentName} onDisconnect={disconnect} />
+        <ReadyArea agentName={agentName} onDisconnect={disconnect} demo={demo} />
+      )}
+
+      {/* Look before you connect. Scanning a QR to find out what a screen even
+          looks like is a bad trade, and the sequence builder is the part people
+          need to see before they will bother. */}
+      {(phase === 'setup' || phase === 'connect') && (
+        <button
+          onClick={() => {
+            setDemo(true)
+            setPhase('ready')
+          }}
+          className="inline-flex items-center justify-center gap-2 self-center rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-600 transition hover:border-slate-300 hover:text-slate-900 active:scale-95"
+        >
+          <Eye className="h-4 w-4" aria-hidden="true" />
+          כניסת הדגמה — לראות איך זה נראה בלי לחבר
+        </button>
       )}
     </div>
   )
