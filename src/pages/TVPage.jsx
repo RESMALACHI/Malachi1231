@@ -32,6 +32,9 @@ const MODES = [
   { key: 'leaders', label: 'המובילים', icon: Trophy },
 ]
 
+/** Where a new booking sends the screen — the board that actually shows it. */
+const TODAY_MODE = MODES.findIndex((m) => m.key === 'today')
+
 export default function TVPage() {
   const navigate = useNavigate()
 
@@ -54,6 +57,10 @@ export default function TVPage() {
   const countRef = useRef(null) // last-seen today meeting count, for milestones
   const soundRef = useRef(false)
   soundRef.current = soundOn
+  // load() is built once and would otherwise close over the first render's
+  // value, same reason soundRef exists.
+  const pausedRef = useRef(false)
+  pausedRef.current = paused
 
   const mode = MODES[modeIdx].key
   const celebrating = Date.now() - celebrateAt < CELEBRATE_MS
@@ -83,6 +90,15 @@ export default function TVPage() {
         if (fresh.length) {
           setFlash(new Set(fresh.map((x) => x.key)))
           setCelebrateAt(Date.now())
+          // Cut to today's board. A booking landing while the room is looking
+          // at the leaderboard is the one thing worth interrupting the rotation
+          // for — the standings will still be there in half a minute, the name
+          // that just came in is the thing to look at now. Changing the mode
+          // restarts the rotation timer, so it holds for a full turn.
+          //
+          // Unless somebody pressed pause: that button exists to stop the board
+          // moving on its own, and this is the board moving on its own.
+          if (!pausedRef.current) setModeIdx(TODAY_MODE)
           if (soundRef.current) playChime(fresh[0]?.kind === 'deal' ? 'deal' : 'meeting')
         }
       }
