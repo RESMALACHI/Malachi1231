@@ -87,7 +87,10 @@ export const DEFAULT_OFFICE = {
   lat: 32.9686,
   lng: 35.5425,
   radiusM: 300,
-  afterHour: 15, // no earlier than this; stepping out for lunch is not "home time"
+  // 0 = any hour. The reminder fires on the crossing out of the radius and
+  // re-arms on the way back in (see useAutoDaySummary), so a lunch trip costs
+  // one notification rather than the whole day's only chance to ask.
+  afterHour: 0,
 }
 
 export async function getOffice() {

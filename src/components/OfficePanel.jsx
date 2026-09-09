@@ -8,8 +8,8 @@ const FIELD =
   'w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm outline-none transition focus:border-amber-400 focus:bg-white'
 
 /**
- * Where the office is, for "open my day summary when I leave" (per-agent
- * opt-in, on the סיכום יום page).
+ * Where the office is, for "remind me to file my day summary when I leave"
+ * (per-device opt-in, on the סיכום יום page).
  *
  * The coordinates matter more than they look: a radius drawn around the wrong
  * point either never fires or fires while people are still at their desks. So
@@ -78,9 +78,10 @@ export default function OfficePanel() {
       <p className="flex gap-2 rounded-xl bg-slate-50 p-3 text-[11px] leading-relaxed text-slate-600">
         <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" aria-hidden="true" />
         <span>
-          כשסוכן מדליק את האפשרות בעמוד <b>סיכום יום</b>, האפליקציה בודקת בפתיחה
-          אם הוא מחוץ לרדיוס הזה אחרי השעה שנקבעה — ואם כן, פותחת לו את הטופס לבד.
-          הבדיקה קורית רק כשהאפליקציה פתוחה, והמיקום לא נשמר בשום מקום.
+          כשסוכן מדליק את האפשרות בעמוד <b>סיכום יום</b>, האפליקציה בודקת בכל
+          פתיחה אם הוא יצא מהרדיוס הזה — ואם כן, שולחת לו התראה לסכם את היום.
+          ההתראה נשלחת על <b>היציאה</b> עצמה ומתאפסת בחזרה למשרד, ולא יותר מפעם
+          ב־45 דקות. הבדיקה קורית רק כשהאפליקציה פתוחה, והמיקום לא נשמר בשום מקום.
         </span>
       </p>
 
@@ -152,7 +153,7 @@ export default function OfficePanel() {
             className={FIELD}
           />
           <p className="mt-1 text-[11px] text-slate-500">
-            כדי שיציאה להפסקת צהריים לא תיחשב סוף יום.
+            <b>0 = בלי הגבלת שעה</b> (ברירת המחדל). שעה אחרת תשתיק את התזכורת לפניה.
           </p>
         </div>
       </div>

@@ -2,25 +2,30 @@ import { useEffect, useState } from 'react'
 import { MapPin, Loader2 } from 'lucide-react'
 import { autoSummaryEnabled, setAutoSummaryEnabled } from '../lib/useAutoDaySummary'
 import { getPosition } from '../lib/geo'
+import { askNotifyPermission, notifyPermission } from '../lib/notify'
 
 /**
- * "Open this form by itself when I leave the office."
+ * "Remind me to file the summary when I leave the office."
  *
  * Per DEVICE, not per agent — it is this phone's location that answers the
  * question, and the same person on the office desktop should not be asked.
  *
- * Turning it on is what triggers the browser's location prompt, deliberately:
- * a permission dialog that appears out of nowhere gets denied, and a denial is
+ * Turning it on is what triggers the two browser prompts, deliberately: a
+ * permission dialog that appears out of nowhere gets denied, and a denial is
  * permanent until the person digs through site settings to undo it. Here they
- * have just read the sentence explaining why.
+ * have just read the sentence explaining why. Location is the one that matters
+ * — without notifications the feature degrades to opening the form instead, so
+ * a refusal there is not fatal and is not treated as one.
  */
 export default function AutoSummaryToggle() {
   const [on, setOn] = useState(false)
   const [asking, setAsking] = useState(false)
   const [error, setError] = useState('')
+  const [noNotify, setNoNotify] = useState(false)
 
   useEffect(() => {
     setOn(autoSummaryEnabled())
+    setNoNotify(autoSummaryEnabled() && notifyPermission() !== 'granted')
   }, [])
 
   const toggle = async () => {
@@ -40,6 +45,11 @@ export default function AutoSummaryToggle() {
       setError('לא הצלחנו לקרוא את המיקום. צריך לאשר גישה למיקום בהגדרות הדפדפן.')
       return
     }
+    // Second, and only now that the location prompt is behind us: permission to
+    // actually reach them. Both prompts in one gesture is what the browsers allow.
+    const perm = await askNotifyPermission()
+    setNoNotify(perm !== 'granted')
+
     setAutoSummaryEnabled(true)
     setOn(true)
   }
@@ -55,12 +65,18 @@ export default function AutoSummaryToggle() {
         aria-hidden="true"
       />
       <div className="min-w-0 flex-1">
-        <p className="text-sm font-bold text-slate-800">פתיחה אוטומטית ביציאה מהמשרד</p>
+        <p className="text-sm font-bold text-slate-800">תזכורת ביציאה מהמשרד</p>
         <p className="mt-0.5 text-[11px] leading-relaxed text-slate-500">
           {on
-            ? 'בפעם הראשונה שתפתח את האפליקציה מחוץ למשרד בסוף היום — הטופס ייפתח לבד, מלא במה שהמערכת כבר יודעת.'
+            ? 'בכל יציאה מהמשרד — בכל שעה — תגיע התראה לסכם את היום. לחיצה עליה פותחת את הטופס מלא במה שהמערכת כבר יודעת.'
             : 'הטלפון ייבדק רק כשהאפליקציה פתוחה, והמיקום לא נשמר בשום מקום — רק נבדק מול המשרד ונמחק.'}
         </p>
+        {on && noNotify && (
+          <p className="mt-1 text-[11px] font-semibold text-amber-700">
+            ההתראות חסומות בדפדפן — במקום התראה, הטופס פשוט ייפתח לבד. אפשר לאשר
+            התראות בהגדרות האתר.
+          </p>
+        )}
         {error && <p className="mt-1 text-[11px] font-semibold text-red-600">{error}</p>}
       </div>
 
@@ -70,7 +86,7 @@ export default function AutoSummaryToggle() {
         disabled={asking}
         role="switch"
         aria-checked={on}
-        aria-label="פתיחה אוטומטית ביציאה מהמשרד"
+        aria-label="תזכורת ביציאה מהמשרד"
         className={`relative mt-0.5 flex h-6 w-11 shrink-0 items-center rounded-full transition disabled:opacity-60 ${
           on ? 'bg-green-500' : 'bg-slate-300'
         }`}
