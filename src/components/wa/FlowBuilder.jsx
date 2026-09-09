@@ -19,25 +19,33 @@ import { useRef, useState } from 'react'
 import {
   AlarmClock,
   CalendarCheck,
+  CheckSquare,
   ChevronDown,
   Clock3,
   MessageSquare,
+  PhoneOff,
   Plus,
   Sparkles,
   Trash2,
+  UserPlus,
 } from 'lucide-react'
 import {
-  ANCHORS,
+  STAGE_KINDS,
+  STOP_CONDITIONS,
   UNITS,
   anchorByKey,
+  anchorsFor,
   blankStage,
-  defaultFlow,
+  defaultLeadFlow,
+  defaultMeetingFlow,
   describeWhen,
   describeWhenShort,
   orderedStages,
+  renderLead,
   sampleValues,
   splitOffset,
   toMinutes,
+  LEAD_PLACEHOLDERS,
 } from '../../lib/waFlow'
 import { PLACEHOLDERS, renderBody } from '../../services/waCustomTemplates'
 
@@ -58,18 +66,65 @@ const TONE = {
     edge: 'border-slate-300',
   },
 }
-const ICON = { booking: CalendarCheck, before: AlarmClock, after: MessageSquare }
+const ICON = {
+  booking: CalendarCheck,
+  before: AlarmClock,
+  after: MessageSquare,
+  arrival: UserPlus,
+  no_answer: PhoneOff,
+}
+
+/**
+ * Everything that differs between the two flows, in one place, so the component
+ * below never asks "which one am I" more than once.
+ */
+const KIND = {
+  meeting: {
+    heading: 'התהליך שלי',
+    blurb:
+      'רצף ההודעות שהלקוח יקבל מרגע שקבעת לו פגישה. כל שלב נקבע ביחס לפגישה — ״יום לפני״, ״שעה לפני״ — ולכן הוא עובד לכל לקוח לבד.',
+    seed: defaultMeetingFlow,
+    placeholders: PLACEHOLDERS,
+    render: renderBody,
+    stops: false,
+  },
+  lead: {
+    heading: 'תהליך פרסומות',
+    blurb:
+      'מה קורה מהרגע שמישהו משאיר פרטים במודעה ועד שבן אדם באמת חוזר אליו. שלב הוא הודעה ללקוח או משימה לסוכן, והתהליך נעצר ברגע שנוצר קשר.',
+    seed: defaultLeadFlow,
+    placeholders: LEAD_PLACEHOLDERS,
+    render: renderLead,
+    stops: true,
+  },
+}
 
 const FIELD =
   'w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none transition focus:border-green-400'
 
 /* ── The green bubble, so the wording is judged as a message ────────── */
-function Bubble({ text, muted, clamp }) {
+function Bubble({ text, muted, clamp, task }) {
   if (!String(text || '').trim()) {
     return (
       <p className="rounded-2xl bg-slate-50 px-3.5 py-3 text-xs italic text-slate-400">
-        עדיין לא נכתבה הודעה לשלב הזה.
+        {task ? 'עדיין לא נכתב מה צריך לעשות בשלב הזה.' : 'עדיין לא נכתבה הודעה לשלב הזה.'}
       </p>
+    )
+  }
+  // A task is not a message and must not look like one — nobody should have to
+  // read the text to work out whether the client sees it.
+  if (task) {
+    return (
+      <div
+        className={`flex max-w-full gap-2 rounded-2xl border border-dashed px-3.5 py-2.5 text-[13px] leading-relaxed ${
+          muted ? 'border-slate-200 text-slate-400' : 'border-slate-300 bg-slate-50 text-slate-700'
+        }`}
+      >
+        <CheckSquare className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" aria-hidden="true" />
+        <span className={`block whitespace-pre-wrap break-words ${clamp ? 'line-clamp-4' : ''}`}>
+          {text}
+        </span>
+      </div>
     )
   }
   return (
@@ -109,7 +164,7 @@ function Switch({ on, onChange, label }) {
 }
 
 /* ── When does this stage go out ────────────────────────────────────── */
-function WhenPicker({ stage, onChange }) {
+function WhenPicker({ stage, kind, onChange }) {
   const { amount, unit } = splitOffset(stage.offsetMin)
   return (
     <div className="grid grid-cols-2 gap-2 sm:grid-cols-[1fr_5rem_6rem]">
@@ -118,7 +173,7 @@ function WhenPicker({ stage, onChange }) {
         onChange={(e) => onChange({ anchor: e.target.value })}
         className={`${FIELD} col-span-2 sm:col-span-1`}
       >
-        {ANCHORS.map((a) => (
+        {anchorsFor(kind).map((a) => (
           <option key={a.key} value={a.key}>
             {a.label}
           </option>
@@ -148,13 +203,15 @@ function WhenPicker({ stage, onChange }) {
 }
 
 /* ── One stage ──────────────────────────────────────────────────────── */
-function StageCard({ stage, agentName, open, onToggleOpen, onChange, onRemove }) {
-  const anchor = anchorByKey(stage.anchor)
+function StageCard({ stage, kind, agentName, open, onToggleOpen, onChange, onRemove }) {
+  const cfg = KIND[kind]
+  const anchor = anchorByKey(stage.anchor, kind)
   const tone = TONE[anchor.tone]
   const Icon = ICON[stage.anchor] || MessageSquare
+  const isTask = stage.type === 'task'
   const bodyRef = useRef(null)
 
-  const preview = renderBody(stage.body, sampleValues(agentName))
+  const preview = cfg.render(stage.body, sampleValues(agentName))
 
   const insert = (token) => {
     const el = bodyRef.current
@@ -187,8 +244,14 @@ function StageCard({ stage, agentName, open, onToggleOpen, onChange, onRemove })
               className={`inline-flex items-center gap-1 rounded-lg px-2 py-0.5 text-[11px] font-bold ${tone.pill}`}
             >
               <Icon className="h-3 w-3" aria-hidden="true" />
-              {describeWhen(stage)}
+              {describeWhen(stage, kind)}
             </span>
+            {isTask && (
+              <span className="ms-1 inline-flex items-center gap-1 rounded-lg bg-slate-800 px-2 py-0.5 text-[11px] font-bold text-white">
+                <CheckSquare className="h-3 w-3" aria-hidden="true" />
+                משימה
+              </span>
+            )}
             <span className="mt-1 block truncate text-sm font-bold text-slate-800">
               {stage.title || 'ללא שם'}
             </span>
@@ -210,7 +273,7 @@ function StageCard({ stage, agentName, open, onToggleOpen, onChange, onRemove })
       {/* Collapsed: the message itself, because that is what is being judged */}
       {!open && (
         <div className="px-3 pb-3">
-          <Bubble text={preview} muted={!stage.enabled} clamp />
+          <Bubble text={preview} muted={!stage.enabled} clamp task={isTask} />
         </div>
       )}
 
@@ -228,14 +291,42 @@ function StageCard({ stage, agentName, open, onToggleOpen, onChange, onRemove })
           </div>
 
           <div>
-            <label className="mb-1 block text-[11px] font-bold text-slate-500">מתי נשלח</label>
-            <WhenPicker stage={stage} onChange={onChange} />
+            <label className="mb-1 block text-[11px] font-bold text-slate-500">
+              {isTask ? 'מתי מוקפץ' : 'מתי נשלח'}
+            </label>
+            <WhenPicker stage={stage} kind={kind} onChange={onChange} />
           </div>
 
+          {/* Only the lead flow has anything to choose here: every stage of the
+              meeting flow is a message to the client. */}
+          {cfg.stops && (
+            <div>
+              <label className="mb-1 block text-[11px] font-bold text-slate-500">סוג השלב</label>
+              <div className="flex gap-1 rounded-xl bg-slate-100 p-1">
+                {STAGE_KINDS.map((k) => (
+                  <button
+                    key={k.key}
+                    type="button"
+                    onClick={() => onChange({ type: k.key })}
+                    className={`flex-1 rounded-lg px-3 py-1.5 text-xs font-bold transition ${
+                      (stage.type || 'message') === k.key
+                        ? 'bg-white text-slate-900 shadow-sm'
+                        : 'text-slate-500'
+                    }`}
+                  >
+                    {k.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div>
-            <label className="mb-1 block text-[11px] font-bold text-slate-500">ההודעה</label>
+            <label className="mb-1 block text-[11px] font-bold text-slate-500">
+              {isTask ? 'מה צריך לעשות' : 'ההודעה'}
+            </label>
             <div className="mb-1.5 flex flex-wrap gap-1">
-              {PLACEHOLDERS.map((p) => (
+              {cfg.placeholders.map((p) => (
                 <button
                   key={p.token}
                   type="button"
@@ -252,13 +343,15 @@ function StageCard({ stage, agentName, open, onToggleOpen, onChange, onRemove })
               onChange={(e) => onChange({ body: e.target.value })}
               rows={7}
               className={`${FIELD} min-h-[9rem] resize-y leading-relaxed`}
-              placeholder="מה נשלח ללקוח בשלב הזה…"
+              placeholder={isTask ? 'מה הסוכן צריך לעשות…' : 'מה נשלח ללקוח בשלב הזה…'}
             />
           </div>
 
           <div>
-            <p className="mb-1 text-[11px] font-bold text-slate-500">כך זה ייראה אצל הלקוח</p>
-            <Bubble text={preview} />
+            <p className="mb-1 text-[11px] font-bold text-slate-500">
+              {isTask ? 'כך זה ייראה לסוכן' : 'כך זה ייראה אצל הלקוח'}
+            </p>
+            <Bubble text={preview} task={isTask} />
           </div>
 
           <div className="flex items-center justify-between gap-2 pt-1">
@@ -284,9 +377,23 @@ function StageCard({ stage, agentName, open, onToggleOpen, onChange, onRemove })
 }
 
 /* ── The screen ─────────────────────────────────────────────────────── */
-export default function FlowBuilder({ agentName }) {
-  const [stages, setStages] = useState(defaultFlow)
+export default function FlowBuilder({ agentName, kind = 'meeting' }) {
+  const cfg = KIND[kind]
+  const [stages, setStages] = useState(cfg.seed)
   const [openId, setOpenId] = useState(null)
+  const [stopOn, setStopOn] = useState('contacted')
+
+  // useState seeds ONCE, so a builder whose kind changes under it would keep
+  // the other flow's stages — lead stages rendered against meeting anchors,
+  // which reads as convincing nonsense rather than as an error. Today's tabs
+  // happen to remount and avoid it; that is a property of where the element
+  // sits in the tree, not something this component should depend on.
+  const [seededFor, setSeededFor] = useState(kind)
+  if (seededFor !== kind) {
+    setSeededFor(kind)
+    setStages(cfg.seed())
+    setOpenId(null)
+  }
 
   const ordered = orderedStages(stages)
   const live = ordered.filter((s) => s.enabled).length
@@ -297,7 +404,7 @@ export default function FlowBuilder({ agentName }) {
     setOpenId(null)
   }
   const add = () => {
-    const s = blankStage()
+    const s = blankStage(kind)
     setStages((all) => [...all, s])
     setOpenId(s.id)
   }
@@ -312,15 +419,14 @@ export default function FlowBuilder({ agentName }) {
           </span>
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
-              <h2 className="text-base font-extrabold text-slate-900">התהליך שלי</h2>
+              <h2 className="text-base font-extrabold text-slate-900">{cfg.heading}</h2>
               <span className="rounded-lg bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-800">
                 תצוגה בלבד · עדיין לא פעיל
               </span>
             </div>
             <p className="mt-1 text-xs leading-relaxed text-slate-500">
-              רצף ההודעות שהלקוח יקבל מרגע שקבעת לו פגישה. כל שלב נקבע ביחס לפגישה
-              — ״יום לפני״, ״שעה לפני״ — ולכן הוא עובד לכל לקוח לבד. אפשר לערוך,
-              להוסיף ולכבות שלבים; <b>עדיין לא נשמר ולא נשלח כלום</b>.
+              {cfg.blurb} אפשר לערוך, להוסיף ולכבות שלבים;{' '}
+              <b>עדיין לא נשמר ולא נשלח כלום</b>.
             </p>
           </div>
         </div>
@@ -345,6 +451,29 @@ export default function FlowBuilder({ agentName }) {
         </div>
       </div>
 
+      {/* The exit. Stated once, at the top, because it governs every stage
+          below it — a sequence still chasing someone an agent already spoke to
+          is worse than no sequence at all. */}
+      {cfg.stops && (
+        <div className="flex flex-col gap-2 rounded-2xl border border-slate-200 bg-white p-4 sm:flex-row sm:items-center sm:justify-between">
+          <span className="flex items-center gap-2 text-sm font-bold text-slate-800">
+            <PhoneOff className="h-4 w-4 shrink-0 text-slate-400" aria-hidden="true" />
+            התהליך נעצר…
+          </span>
+          <select
+            value={stopOn}
+            onChange={(e) => setStopOn(e.target.value)}
+            className={`${FIELD} sm:max-w-[22rem]`}
+          >
+            {STOP_CONDITIONS.map((c) => (
+              <option key={c.key} value={c.key}>
+                {c.label}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+
       {/* The timeline */}
       <div>
         {ordered.map((stage, i) => (
@@ -353,7 +482,7 @@ export default function FlowBuilder({ agentName }) {
             <div className="flex shrink-0 flex-col items-center pt-3">
               <span
                 className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-extrabold ring-4 ${
-                  TONE[anchorByKey(stage.anchor).tone].dot
+                  TONE[anchorByKey(stage.anchor, kind).tone].dot
                 } ${stage.enabled ? '' : 'opacity-50'}`}
               >
                 {i + 1}
@@ -363,6 +492,7 @@ export default function FlowBuilder({ agentName }) {
             <div className="min-w-0 flex-1 pb-3">
               <StageCard
                 stage={stage}
+                kind={kind}
                 agentName={agentName}
                 open={openId === stage.id}
                 onToggleOpen={() => setOpenId((o) => (o === stage.id ? null : stage.id))}

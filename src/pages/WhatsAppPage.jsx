@@ -22,6 +22,7 @@ import {
   X,
   Eye,
   ListOrdered,
+  Megaphone,
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { WA_TEMPLATES, toWaNumber, BRANCHES } from '../lib/waTemplates'
@@ -44,6 +45,8 @@ import {
   credsLookValid,
 } from '../services/whatsappService'
 import FlowBuilder from '../components/wa/FlowBuilder'
+import LeadWebhookPanel from '../components/wa/LeadWebhookPanel'
+import { isAdminAgent } from '../lib/agents'
 
 const ERR_TEXT = {
   bad_credentials: 'הפרטים שהוזנו שגויים — ה־idInstance או ה־Token לא נכונים.',
@@ -704,11 +707,18 @@ function SenderInterface({ agentName, onDisconnect, demo }) {
  * them constantly — but they were not worth one screen either.
  */
 function ReadyArea({ agentName, onDisconnect, demo }) {
-  const [tab, setTab] = useState('send') // 'send' | 'flow'
+  const [tab, setTab] = useState('send') // 'send' | 'flow' | 'ads'
+
+  // The advertising funnel is one person's job, not a per-agent setting: the
+  // leads arrive on a company webhook and מלאכי owns it. Gated on the roster's
+  // admin role rather than on his name, so it follows him if he is renamed and
+  // moves with the job if it ever changes hands.
+  const ads = isAdminAgent(agentName)
 
   const TABS = [
     { key: 'send', label: 'שליחה עכשיו', icon: Send },
     { key: 'flow', label: 'התהליך שלי', icon: ListOrdered },
+    ...(ads ? [{ key: 'ads', label: 'פרסומות', icon: Megaphone }] : []),
   ]
 
   return (
@@ -727,16 +737,21 @@ function ReadyArea({ agentName, onDisconnect, demo }) {
               }`}
             >
               <t.icon className="h-4 w-4 shrink-0" aria-hidden="true" />
-              {t.label}
+              <span className="truncate">{t.label}</span>
             </button>
           )
         })}
       </div>
 
-      {tab === 'send' ? (
+      {tab === 'send' && (
         <SenderInterface agentName={agentName} onDisconnect={onDisconnect} demo={demo} />
-      ) : (
-        <FlowBuilder agentName={agentName} />
+      )}
+      {tab === 'flow' && <FlowBuilder agentName={agentName} kind="meeting" />}
+      {tab === 'ads' && ads && (
+        <div className="flex flex-col gap-4">
+          <LeadWebhookPanel />
+          <FlowBuilder agentName={agentName} kind="lead" />
+        </div>
       )}
     </div>
   )
