@@ -9,7 +9,7 @@
 // Mirrors supabase/functions/wa-webhook/agenda.ts, which does the same job for
 // the WhatsApp ".היום" command. Keep the two in step.
 
-import { aliasesFor } from './agents'
+import { aliasesFor } from './agents.js'
 
 // Hebrew-aware word boundary, so "עדי" never matches inside "סעדי".
 const WORDCHAR = 'A-Za-z0-9\\u05D0-\\u05EA'
@@ -87,7 +87,12 @@ export function clientName(rawTitle, agent) {
   }
 
   t = t.replace(
-    wordG('אישר|אישרה|אישרו|מאשר|מאשרת|מאשרים|בוטל|בוטלה|מבוטל|מבוטלת|הגעה'),
+    wordG(
+      // Status scribbles, not names. Every one of these was found stranded on
+      // the end of a real client's name in the deals table.
+      'אישר|אישרה|אישרו|מאשר|מאשרת|מאשרים|בוטל|בוטלה|מבוטל|מבוטלת|הגעה|' +
+        'הגיע|הגיעה|הגיעו|נקבע|נקבעה|היום|ההיום'
+    ),
     ' '
   )
   t = t.replace(/ללא מענה|לא ענה|אין מענה|לא עונה/gu, ' ')
@@ -104,6 +109,12 @@ export function clientName(rawTitle, agent) {
     .replace(/\s+/g, ' ')
     .replace(/^[\s,.!:]+|[\s,.!:]+$/g, '')
     .trim()
+
+  // The confirmation date, left stranded once "אישר" was removed above:
+  // "אישר 3.9", "אישרה 26", "אישר 31/08", "אישר 25.8.26". Only at the END, and
+  // only when the token is nothing but digits and separators — a name never
+  // ends in a number, so this cannot eat one.
+  t = t.replace(/[\s,.\-–/]*\d{1,4}(?:[./-]\d{1,4}){0,2}$/u, '').trim()
 
   return t || '(ללא פרטים)'
 }

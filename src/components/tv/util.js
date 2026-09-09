@@ -45,9 +45,16 @@ export function initials(name) {
 
 /** The display name for a feed row / the hero. Meetings carry a messy title. */
 export function displayName(item) {
-  if (item.kind === 'deal') return String(item.who || '').trim() || 'לקוח'
+  // Deals get the SAME cleaning as meetings, because a deal's stored name is
+  // usually a calendar title: it is created from the meeting it closed, so the
+  // board was printing "פגישת זום - רון וררגה - מלאכי אזערי - אישר" under the
+  // words "עסקה נסגרה". Running an already-clean name through this changes
+  // nothing, so the hand-typed ones are safe.
   const cleaned = clientName(item.who, item.agent)
-  return cleaned && cleaned !== '(ללא פרטים)' ? cleaned : String(item.who || 'פגישה חדשה')
+  if (cleaned && cleaned !== '(ללא פרטים)') return cleaned
+  const raw = String(item.who || '').trim()
+  if (raw) return raw
+  return item.kind === 'deal' ? 'לקוח' : 'פגישה חדשה'
 }
 
 /** A full-screen celebration every this many meetings booked today. */

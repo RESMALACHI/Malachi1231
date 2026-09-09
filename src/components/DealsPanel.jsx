@@ -17,6 +17,7 @@ import ConfirmDialog from './ConfirmDialog'
 import DealsBonusCard from './DealsBonusCard'
 import { formatDay, formatTime } from '../lib/dateUtils'
 import { getDeals, saveDeal, deleteDeal, todayISO, dealsReport } from '../services/dealsService'
+import { clientName } from '../lib/meetingTitle'
 import { collectionState } from '../lib/dealsBonus'
 import { useModalLock } from '../lib/useModalLock'
 import { openWhatsApp } from '../lib/whatsappLink'
@@ -134,8 +135,11 @@ export default function DealsPanel({ agentName, isManager, meetings, year, month
         meetingId: form.meetingId || null,
         agentName,
         // Stored alongside the link so the deal stays readable even if the
-        // calendar sync later removes the meeting row.
-        clientName: meeting?.title || null,
+        // calendar sync later removes the meeting row. The CLIENT, not the
+        // whole calendar title — every other screen parses the title before
+        // showing it, and this one stored it raw, which is how the wall board
+        // came to announce a closed deal under a meeting's headline.
+        clientName: meeting ? clientName(meeting.title, meeting.agent_name) : null,
         amount,
         collected: form.collected,
         kind: form.kind,
