@@ -337,6 +337,39 @@
 }
 .tv-milestone { animation: tv-milestone 6s cubic-bezier(0.22, 1, 0.36, 1) both; }
 
+/* ── the deal takeover ─────────────────────────────────────────────────────
+   A closed deal is the biggest thing that happens on this board, so it gets a
+   longer hold than the 6s milestone: the number has to be readable across the
+   room while it counts up, and the room needs a beat to look up first. */
+@keyframes tv-deal-card {
+  0%   { opacity: 0; transform: scale(0.72) translateY(34px); }
+  10%  { opacity: 1; transform: scale(1.05) translateY(0); }
+  17%  { transform: scale(1); }
+  92%  { opacity: 1; transform: scale(1); }
+  100% { opacity: 0; transform: scale(1.05); }
+}
+.tv-deal-card { animation: tv-deal-card 11s cubic-bezier(0.22, 1, 0.36, 1) both; }
+
+/* The gold wash behind it — a slow breath, not a strobe. A wall board runs all
+   day and anything that flickers becomes something people stop looking at. */
+@keyframes tv-deal-glow {
+  0%   { opacity: 0; }
+  12%  { opacity: 1; }
+  90%  { opacity: 1; }
+  100% { opacity: 0; }
+}
+.tv-deal-glow { animation: tv-deal-glow 11s ease-in-out both; }
+
+/* Light sweeping across the amount while it counts. */
+@keyframes tv-deal-shine {
+  0%, 100% { background-position: 200% center; }
+  50%      { background-position: -100% center; }
+}
+.tv-deal-shine {
+  background-size: 200% auto;
+  animation: tv-deal-shine 3.6s linear infinite;
+}
+
 /* a very slow aurora drift for the background */
 @keyframes tv-aurora {
   0%, 100% { transform: translate3d(-8%, -4%, 0) rotate(0deg); }

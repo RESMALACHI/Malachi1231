@@ -16,6 +16,7 @@ import { LogoMark } from '../components/Logo'
 import BoardView from '../components/tv/BoardView'
 import LeadersView from '../components/tv/LeadersView'
 import Celebration from '../components/tv/Celebration'
+import DealCelebration from '../components/tv/DealCelebration'
 import MilestoneBanner from '../components/tv/MilestoneBanner'
 import { getTvBoards, getDailyPace, mergeFeed, leaderboardFrom, EMPTY_BOARD } from '../services/tvService'
 import { celebrationFor, milestoneCrossed } from '../components/tv/util'
@@ -26,6 +27,10 @@ const PACE_MS = 5 * 60_000 // the 14-day average barely moves — refresh it laz
 const ROTATE_MS = 26_000 // seconds each mode holds the screen
 const CELEBRATE_MS = 7_000 // the "just happened" glow on the hero
 const MILESTONE_MS = 8_000 // the full-screen milestone — matches the song's length
+// The deal takeover runs longer than a milestone, on purpose: it has to hold
+// the room while a number counts up, and a closed deal is the biggest thing
+// that happens here. Matches .tv-deal-card in index.css.
+const DEAL_MS = 11_000
 
 const MODES = [
   { key: 'today', label: 'היום', icon: Sun },
@@ -52,6 +57,7 @@ export default function TVPage() {
   const [celebrateAt, setCelebrateAt] = useState(0)
   const [flash, setFlash] = useState(() => new Set())
   const [milestone, setMilestone] = useState(null) // { n, at }
+  const [deal, setDeal] = useState(null) // { item, at } — the takeover
 
   const seenRef = useRef(null) // Set<string> of today's feed keys already shown
   const countRef = useRef(null) // last-seen today meeting count, for milestones
@@ -65,6 +71,8 @@ export default function TVPage() {
   const mode = MODES[modeIdx].key
   const celebrating = Date.now() - celebrateAt < CELEBRATE_MS
   const showMilestone = milestone && Date.now() - milestone.at < MILESTONE_MS
+  // Re-evaluated every second by the wall-clock tick, same as the two above.
+  const showDeal = deal && Date.now() - deal.at < DEAL_MS
 
   // "המובילים" runs on the MONTH — a weekly board resets every Sunday and reads
   // near-empty for half the week; the month is the number the office competes on.
@@ -90,6 +98,13 @@ export default function TVPage() {
         if (fresh.length) {
           setFlash(new Set(fresh.map((x) => x.key)))
           setCelebrateAt(Date.now())
+
+          // A closed deal outranks everything else on this board. It takes the
+          // whole screen, freezes the rotation for its duration (see the
+          // rotation effect below) and gets the song rather than the chime.
+          // Newest first, so two deals in one poll show the latest.
+          const closed = fresh.find((x) => x.kind === 'deal')
+          if (closed) setDeal({ item: closed, at: Date.now() })
           // Cut to today's board. A booking landing while the room is looking
           // at the leaderboard is the one thing worth interrupting the rotation
           // for — the standings will still be there in half a minute, the name
@@ -99,7 +114,10 @@ export default function TVPage() {
           // Unless somebody pressed pause: that button exists to stop the board
           // moving on its own, and this is the board moving on its own.
           if (!pausedRef.current) setModeIdx(TODAY_MODE)
-          if (soundRef.current) playChime(fresh[0]?.kind === 'deal' ? 'deal' : 'meeting')
+          if (soundRef.current) {
+            if (closed) playMilestoneMusic()
+            else playChime('meeting')
+          }
         }
       }
 
@@ -143,10 +161,15 @@ export default function TVPage() {
 
   /* ── mode rotation — a fresh timer per mode, auto or manual ── */
   useEffect(() => {
-    if (paused) return
+    // The deal takeover overrides the carousel: rotating underneath it would
+    // change the board behind the card and leave the wrong screen showing when
+    // it clears. showDeal flips back within a second of the card ending (the
+    // wall-clock tick re-renders), and this effect then re-arms — so the board
+    // that follows a deal gets a full turn rather than somebody else's leftover.
+    if (paused || showDeal) return
     const id = setTimeout(() => setModeIdx((i) => (i + 1) % MODES.length), ROTATE_MS)
     return () => clearTimeout(id)
-  }, [paused, modeIdx])
+  }, [paused, modeIdx, showDeal])
 
   /* ── the wall clock ── */
   useEffect(() => {
@@ -248,7 +271,8 @@ export default function TVPage() {
           }}
         />
       )}
-      {showMilestone && (
+      {showDeal && <DealCelebration key={`deal-${deal.at}`} deal={deal.item} />}
+      {showMilestone && !showDeal && (
         <>
           <Celebration key={`c-${milestone.at}`} show={milestone.show.key} />
           <MilestoneBanner key={`b-${milestone.at}`} n={milestone.n} show={milestone.show} />
