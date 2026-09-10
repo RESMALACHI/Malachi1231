@@ -26,6 +26,7 @@ import { agentColor, initials, shekels } from './util'
 function useCountUp(target, ms) {
   const [value, setValue] = useState(0)
   const raf = useRef(0)
+  const land = useRef(0)
 
   useEffect(() => {
     const to = Number(target) || 0
@@ -46,24 +47,56 @@ function useCountUp(target, ms) {
       if (p < 1) raf.current = requestAnimationFrame(step)
     }
     raf.current = requestAnimationFrame(step)
-    return () => cancelAnimationFrame(raf.current)
+
+    // The number MUST end up right, and requestAnimationFrame does not promise
+    // that: it stops being called whenever the page isn't painting, and the
+    // easing is so flat near the end that stalling looks like an answer rather
+    // than a freeze. Caught in preview settling on ₪19,560 for a ₪19,800 deal.
+    // A timer keeps running when frames do not, so it lands the real figure.
+    land.current = setTimeout(() => setValue(to), ms + 400)
+
+    return () => {
+      cancelAnimationFrame(raf.current)
+      clearTimeout(land.current)
+    }
   }, [target, ms])
 
   return value
+}
+
+/**
+ * Re-fires the particle layers every `ms` for as long as this is mounted.
+ *
+ * Every show in Celebration.jsx runs once and stops — they were written for a
+ * 6-second milestone. Over a song three times that length the screen would go
+ * still after five seconds and stay still, which is the opposite of the point.
+ * Changing the key remounts the layer and restarts it from the top.
+ */
+function useWave(ms) {
+  const [wave, setWave] = useState(0)
+  useEffect(() => {
+    const id = setInterval(() => setWave((w) => w + 1), ms)
+    return () => clearInterval(id)
+  }, [ms])
+  return wave
 }
 
 export default function DealCelebration({ deal }) {
   const amount = Number(deal?.amount) || 0
   const shown = useCountUp(amount, 2600)
   const color = agentColor(deal?.agent)
+  // A coin wave lasts about 5.6s, so a new one every 4s overlaps into a
+  // continuous rain. The centre effects are punctuation and come round slower.
+  const coinWave = useWave(4000)
+  const burstWave = useWave(7000)
 
   return (
     <>
       {/* Three shows at once. Order matters only for looks: the rings sit
           behind the falling coins, the burst throws over both. */}
-      <Celebration show="shockwave" />
-      <Celebration show="coins" />
-      <Celebration show="burst" />
+      <Celebration key={`s${burstWave}`} show="shockwave" />
+      <Celebration key={`c${coinWave}`} show="coins" />
+      <Celebration key={`b${burstWave}`} show="burst" />
 
       {/* The gold wash. Sits under the card, over everything else. */}
       <div

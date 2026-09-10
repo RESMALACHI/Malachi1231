@@ -20,17 +20,24 @@ import DealCelebration from '../components/tv/DealCelebration'
 import MilestoneBanner from '../components/tv/MilestoneBanner'
 import { getTvBoards, getDailyPace, mergeFeed, leaderboardFrom, EMPTY_BOARD } from '../services/tvService'
 import { celebrationFor, milestoneCrossed } from '../components/tv/util'
-import { initAudio, playChime, playMilestoneMusic, stopMilestoneMusic } from '../lib/chime'
+import {
+  initAudio,
+  playChime,
+  playDealMusic,
+  playMilestoneMusic,
+  stopAllMusic,
+} from '../lib/chime'
 
 const POLL_MS = 20_000 // how often the board re-reads the database
 const PACE_MS = 5 * 60_000 // the 14-day average barely moves — refresh it lazily
 const ROTATE_MS = 26_000 // seconds each mode holds the screen
 const CELEBRATE_MS = 7_000 // the "just happened" glow on the hero
 const MILESTONE_MS = 8_000 // the full-screen milestone — matches the song's length
-// The deal takeover runs longer than a milestone, on purpose: it has to hold
-// the room while a number counts up, and a closed deal is the biggest thing
-// that happens here. Matches .tv-deal-card in index.css.
-const DEAL_MS = 11_000
+// The deal takeover runs for exactly as long as its song (21.71s, measured),
+// so the picture and the sound end together. It is the longest thing this board
+// does, on purpose: a closed deal is the biggest thing that happens here.
+// Matches .tv-deal-card in index.css.
+const DEAL_MS = 21_700
 
 const MODES = [
   { key: 'today', label: 'היום', icon: Sun },
@@ -115,7 +122,7 @@ export default function TVPage() {
           // moving on its own, and this is the board moving on its own.
           if (!pausedRef.current) setModeIdx(TODAY_MODE)
           if (soundRef.current) {
-            if (closed) playMilestoneMusic()
+            if (closed) playDealMusic()
             else playChime('meeting')
           }
         }
@@ -134,7 +141,7 @@ export default function TVPage() {
           setMilestone({ n: hit, at: Date.now(), show: celebrationFor(hit) })
           // The song, not the chime — a level is the one moment worth the room
           // looking up, and it runs exactly as long as the banner.
-          if (soundRef.current) playMilestoneMusic()
+          if (soundRef.current) playMilestoneMusic(MILESTONE_MS)
         }
       } else {
         countRef.current = n
@@ -214,8 +221,8 @@ export default function TVPage() {
     } else {
       setSoundOn(false)
       // Someone reaching for the mute button mid-song means now, not eight
-      // seconds from now.
-      stopMilestoneMusic()
+      // seconds from now — and not twenty-two, either.
+      stopAllMusic()
     }
   }
   const toggleFs = () => {
