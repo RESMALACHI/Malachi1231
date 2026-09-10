@@ -21,7 +21,7 @@ import DealsBonusCard from './DealsBonusCard'
 import { formatDay, formatTime } from '../lib/dateUtils'
 import { getDeals, saveDeal, deleteDeal, todayISO, dealsReport } from '../services/dealsService'
 import { addPayment, loadMonthBilling } from '../services/dealPaymentsService'
-import { monthKeyOf, monthName, splitByBilling } from '../lib/dealBilling'
+import { REJECT_REASON, monthKeyOf, monthName, splitForMonth } from '../lib/dealBilling'
 import { clientName } from '../lib/meetingTitle'
 import { collectionState } from '../lib/dealsBonus'
 import { useModalLock } from '../lib/useModalLock'
@@ -121,36 +121,36 @@ export default function DealsPanel({ agentName, isManager, meetings, year, month
    * should appear above it, if any.
    */
   const { groups, ordered } = useMemo(() => {
-    const g = splitByBilling(deals, paymentsByDeal, viewMonth)
+    const g = splitForMonth(deals, paymentsByDeal, viewMonth, attendedMeetings)
     const out = []
     const push = (rows, section, header) =>
       rows.forEach((row, i) => out.push({ row, section, header: i === 0 ? header : null }))
 
-    push(g.billed, 'billed', {
+    push(g.earning, 'earning', {
       icon: BadgeCheck,
       tone: 'text-green-700',
-      title: 'עסקאות שחויבו',
-      count: g.billed.length,
+      title: 'עסקאות מזכות',
+      count: g.earning.length,
     })
-    push(g.unbilled, 'unbilled', {
+    push(g.notEarning, 'notEarning', {
       icon: CircleDollarSign,
       tone: 'text-amber-700',
-      title: 'עסקאות שטרם חויבו במלואן',
-      count: g.unbilled.length,
+      title: 'עסקאות שאינן מזכות',
+      count: g.notEarning.length,
     })
     push(g.moved, 'moved', {
       icon: Receipt,
       tone: 'text-slate-500',
-      title: 'חויבו בחודש אחר',
+      title: 'עברו לחודש אחר',
       count: g.moved.length,
     })
     return { groups: g, ordered: out }
-  }, [deals, paymentsByDeal, viewMonth])
+  }, [deals, paymentsByDeal, viewMonth, attendedMeetings])
 
   // The headline total counts what this month is credited for — the struck rows
   // belong to another month and must not be added in twice.
   const total = useMemo(
-    () => groups.billed.reduce((sum, d) => sum + Number(d.amount || 0), 0),
+    () => groups.earning.reduce((sum, d) => sum + Number(d.amount || 0), 0),
     [groups]
   )
 
@@ -573,14 +573,14 @@ export default function DealsPanel({ agentName, isManager, meetings, year, month
                   >
                     {shekel.format(Number(d.amount || 0))}
                   </span>
-                  {section === 'unbilled' && b?.remaining > 0 && (
+                  {b?.remaining > 0 && !struck && (
                     <span className="rounded-full bg-red-100 px-2 py-0.5 text-[11px] font-bold tabular-nums text-red-700">
                       חסר {shekel.format(b.remaining)}
                     </span>
                   )}
-                  {section === 'billed' && b?.creditedFrom && (
+                  {section === 'earning' && b?.dealMonth !== viewMonth && (
                     <span className="rounded-full bg-green-100 px-2 py-0.5 text-[11px] font-bold text-green-800">
-                      זיכוי מ{monthName(b.creditedFrom)}
+                      זיכוי מ{monthName(b.dealMonth)}
                     </span>
                   )}
                   <span
@@ -620,12 +620,22 @@ export default function DealsPanel({ agentName, isManager, meetings, year, month
                   </p>
                 )}
 
+                {/* Why this one does not count, in words that say what to do
+                    about it — the ₪3,000-to-₪5,000 allowance especially, which
+                    is otherwise invisible. */}
+                {section === 'notEarning' && d.rejectReason && (
+                  <p className="mt-1.5 flex items-start gap-1.5 text-xs font-bold text-amber-700">
+                    <CircleDollarSign className="mt-px h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                    {REJECT_REASON[d.rejectReason] || d.rejectReason}
+                  </p>
+                )}
+
                 {/* Why this one is struck. Without the reason a greyed-out row
                     just looks like a bug. */}
                 {struck && (
                   <p className="mt-1.5 flex items-center gap-1.5 text-xs font-bold text-slate-500">
                     <Receipt className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-                    חויבה במלואה ב-{formatDay(`${b.completedOn}T12:00:00`)} — זוכתה ל
+                    החיוב שהפך אותה למזכה נרשם ב-{formatDay(`${b.qualifiedOn}T12:00:00`)} — זוכתה ל
                     {monthName(b.creditMonth)}
                   </p>
                 )}
@@ -649,7 +659,7 @@ export default function DealsPanel({ agentName, isManager, meetings, year, month
               </div>
               {!isManager && (
                 <div className="flex shrink-0 gap-1">
-                  {section === 'unbilled' && (
+                  {!struck && b?.remaining > 0 && (
                     <button
                       onClick={() =>
                         setCharging({

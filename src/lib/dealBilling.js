@@ -6,16 +6,37 @@
 // the first month's record entirely; leaving it put the money in the wrong one.
 //
 // So charges are rows now (deal_payments), each with its own date, and this
-// module answers the two questions the deals page asks:
+// module answers the question the deals page asks:
 //
-//   Is this deal fully charged?
-//   If so, in which month did that happen — and is that the month I am looking at?
+//   In which month did this deal start EARNING — and is that the month I am
+//   looking at?
 //
-// NOTE: this is about BILLING, not pay. The bonus rules in dealsBonus.js are
-// untouched and still read deals.collected, which the app keeps as the cached
-// sum of these rows.
+// Earning, not "fully charged". Those are different and the difference is the
+// whole point: a 19,800 deal with 3,000 collected still owes 16,800 and is
+// already earning. The rules for that live in dealsBonus.js and are not
+// duplicated here — this module decides WHICH MONTH a deal belongs to and then
+// hands the month to calcDealBonus to decide who earns.
+//
+// The bonus rules themselves are untouched. deals.collected is still what they
+// read, and the app keeps it as the cached sum of these rows.
+
+import { QUALIFY_PARTIAL, calcDealBonus } from './dealsBonus.js'
 
 const num = (v) => Number(v || 0)
+
+/**
+ * The collection at which a deal can START counting towards the bonus.
+ *
+ * A project needs ₪3,000 — below that it never counts, and between 3,000 and
+ * 5,000 it counts only twice a month (calcDealBonus enforces that part, since
+ * it depends on the other deals in the month).
+ *
+ * A single course is its own 2% line and is not gated on collection at all, so
+ * it counts from the day it is written.
+ */
+export function qualifyingFloor(deal) {
+  return deal?.kind === 'course' ? 0 : QUALIFY_PARTIAL
+}
 
 /** 'YYYY-MM' from a date or ISO string. The month is the unit everything here works in. */
 export function monthKey(value) {
@@ -41,10 +62,17 @@ export function billingFor(deal, payments = []) {
     String(a.paid_on).localeCompare(String(b.paid_on))
   )
 
+  const floor = qualifyingFloor(deal)
   let paid = 0
   let completedOn = null
+  // A course counts from the day it is written; a project from the charge that
+  // takes it over ₪3,000. THIS is the date that decides which month is credited
+  // — not the one that settles the deal in full.
+  let qualifiedOn = floor === 0 ? deal?.deal_date || null : null
+
   for (const p of rows) {
     paid += num(p.amount)
+    if (qualifiedOn === null && paid >= floor) qualifiedOn = p.paid_on
     if (completedOn === null && amount > 0 && paid >= amount) completedOn = p.paid_on
   }
 
@@ -53,52 +81,86 @@ export function billingFor(deal, payments = []) {
     remaining: Math.max(0, amount - paid),
     complete: amount > 0 && paid >= amount,
     completedOn,
+    qualifiedOn,
     dealMonth: monthKey(deal?.deal_date),
-    creditMonth: completedOn ? monthKey(completedOn) : null,
+    creditMonth: qualifiedOn ? monthKey(qualifiedOn) : null,
     payments: rows,
   }
 }
 
-/**
- * Where one deal belongs in the month currently on screen.
- *
- *   'billed'   — fully charged, and that happened in THIS month. If it was
- *                signed in an earlier month, `creditedFrom` says which.
- *   'unbilled' — signed this month, still not fully charged. This is the only
- *                section that offers "add a charge".
- *   'moved'    — signed this month but settled in a later one. It stays visible
- *                here, struck through, so the month keeps its record instead of
- *                the deal silently vanishing from it.
- *   'none'     — nothing to do with this month.
- */
-export function placeInMonth(deal, payments, viewMonth) {
-  const b = billingFor(deal, payments)
-  const own = b.dealMonth === viewMonth
-
-  if (b.complete && b.creditMonth === viewMonth) {
-    return { ...b, section: 'billed', creditedFrom: own ? null : b.dealMonth }
-  }
-  if (own && b.complete) return { ...b, section: 'moved' }
-  if (own) return { ...b, section: 'unbilled' }
-  return { ...b, section: 'none' }
+/** Why a deal is not earning, in the words that say what to do about it. */
+export const REJECT_REASON = {
+  missing_collection: 'לא נרשמה גבייה',
+  below_minimum: 'נגבה פחות מ־3,000 ₪',
+  partial_allowance_used:
+    'כבר נוצלו החודש 2 עסקאות בטווח 3,000–5,000 ₪ — כדי שזו תזכה צריך לגבות מעל 5,000 ₪',
 }
 
 /**
- * Split a month's deals into the two sections the page shows, plus the struck
- * ones. Order is preserved from the input, which arrives newest-first.
+ * The month's deals, split the way the bonus actually sees them.
+ *
+ * The split is NOT "fully charged or not" — that was the first attempt and it
+ * was wrong. A ₪19,800 deal with ₪3,000 collected is still owed ₪16,800 and it
+ * IS earning, because ₪3,000 clears the floor. So the decision is handed to
+ * calcDealBonus, which owns the real rules including the one no simple test can
+ * reproduce: only two deals a month may qualify on ₪3,000–5,000, and they are
+ * the two that collected most. The third has to reach ₪5,000.
+ *
+ *   earning    — counts towards this month's bonus.
+ *   notEarning — does not, and carries the reason why.
+ *   moved      — signed this month but only started counting in a later one.
+ *                Kept visible here, struck through, so the month keeps its
+ *                record instead of the deal silently vanishing from it.
  */
-export function splitByBilling(deals, paymentsByDeal, viewMonth) {
-  const billed = []
-  const unbilled = []
+export function splitForMonth(deals, paymentsByDeal, viewMonth, attendedMeetings) {
+  const mine = []
   const moved = []
+
   for (const d of deals) {
-    const p = placeInMonth(d, paymentsByDeal[d.id] || [], viewMonth)
-    const row = { ...d, billing: p }
-    if (p.section === 'billed') billed.push(row)
-    else if (p.section === 'unbilled') unbilled.push(row)
-    else if (p.section === 'moved') moved.push(row)
+    const billing = billingFor(d, paymentsByDeal[d.id] || [])
+    const row = { ...d, billing }
+    if (billing.creditMonth === viewMonth) mine.push(row)
+    else if (billing.dealMonth === viewMonth && billing.creditMonth) moved.push(row)
+    else if (billing.dealMonth === viewMonth) mine.push(row)
   }
-  return { billed, unbilled, moved }
+
+  // Only the deals this month is credited for take part, so a deal that moved
+  // to another month cannot use up this month's allowance of two.
+  //
+  // collected is handed over as the SUM OF THE CHARGES rather than the cached
+  // column, so the split can never disagree with the rows it is showing. An
+  // empty history stays null, because "nothing recorded yet" and "recorded as
+  // zero" are different answers and calcDealBonus reports them differently.
+  // PER AGENT. The allowance of two is each agent's own, so a manager looking
+  // at everybody must not have one agent's deals crowd out another's.
+  const earns = new Set()
+  const why = new Map()
+  const byAgent = new Map()
+  for (const d of mine) {
+    const k = d.agent_name || ''
+    if (!byAgent.has(k)) byAgent.set(k, [])
+    byAgent.get(k).push(d)
+  }
+  for (const rows of byAgent.values()) {
+    const bonus = calcDealBonus(
+      rows.map((d) => ({
+        ...d,
+        collected: d.billing.payments.length ? d.billing.paid : null,
+      })),
+      attendedMeetings
+    )
+    for (const d of bonus.qualified) earns.add(d.id)
+    for (const c of bonus.courseLines) earns.add(c.deal.id)
+    for (const r of bonus.rejected) why.set(r.deal.id, r.reason)
+  }
+
+  const earning = []
+  const notEarning = []
+  for (const row of mine) {
+    if (earns.has(row.id)) earning.push(row)
+    else notEarning.push({ ...row, rejectReason: why.get(row.id) || null })
+  }
+  return { earning, notEarning, moved }
 }
 
 const HE_MONTHS = [
