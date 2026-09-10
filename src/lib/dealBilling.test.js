@@ -53,10 +53,35 @@ test('the charge that crosses ₪3,000 sets the month, not the one that settles 
   assert.equal(b.completedOn, '2026-10-01', 'settled later, and that is a different date')
 })
 
-test('a single course earns from the day it is written, with no collection at all', () => {
-  const b = billingFor(deal({ kind: 'course', amount: 1800 }), [])
-  assert.equal(b.creditMonth, AUG)
-  assert.equal(b.paid, 0)
+test('a single course earns only once it is collected IN FULL', () => {
+  const course = deal({ kind: 'course', amount: 1800 })
+  assert.equal(billingFor(course, []).creditMonth, null, 'nothing paid, nothing earned')
+  assert.equal(
+    billingFor(course, [pay(900, '2026-08-20')]).creditMonth,
+    null,
+    'half a course is just an unpaid course'
+  )
+  const full = billingFor(course, [pay(900, '2026-08-20'), pay(900, '2026-09-02')])
+  assert.equal(full.qualifiedOn, '2026-09-02')
+  assert.equal(full.creditMonth, SEP, 'credited to the month it was paid off')
+})
+
+test('a part-paid course says why it is not earning', () => {
+  const course = deal({ kind: 'course', amount: 1800 })
+  const { earning, notEarning } = splitForMonth(
+    [course],
+    { d1: [pay(900, '2026-08-20')] },
+    AUG,
+    OK
+  )
+  assert.equal(earning.length, 0)
+  assert.equal(notEarning[0].rejectReason, 'course_not_collected')
+})
+
+test('a fully paid course earns, in the month it was paid', () => {
+  const course = deal({ kind: 'course', amount: 1800 })
+  const { earning } = splitForMonth([course], { d1: [pay(1800, '2026-08-20')] }, AUG, OK)
+  assert.deepEqual(earning.map((d) => d.id), ['d1'])
 })
 
 test('payments are summed in DATE order, not the order they were typed', () => {

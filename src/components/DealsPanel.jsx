@@ -20,7 +20,7 @@ import ConfirmDialog from './ConfirmDialog'
 import DealsBonusCard from './DealsBonusCard'
 import { formatDay, formatTime } from '../lib/dateUtils'
 import { getDeals, saveDeal, deleteDeal, todayISO, dealsReport } from '../services/dealsService'
-import { addPayment, loadMonthBilling } from '../services/dealPaymentsService'
+import { addPayment, deletePayment, loadMonthBilling } from '../services/dealPaymentsService'
 import { REJECT_REASON, monthKeyOf, monthName, splitForMonth } from '../lib/dealBilling'
 import { clientName } from '../lib/meetingTitle'
 import { collectionState } from '../lib/dealsBonus'
@@ -80,6 +80,7 @@ export default function DealsPanel({ agentName, isManager, meetings, year, month
   // The deal a charge is being recorded against, plus the form for it.
   const [charging, setCharging] = useState(null)
   const [chargeSaving, setChargeSaving] = useState(false)
+  const [undoing, setUndoing] = useState(null) // { payment, deal }
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [form, setForm] = useState(null) // null = closed
@@ -126,31 +127,67 @@ export default function DealsPanel({ agentName, isManager, meetings, year, month
    * card keeps its single set of dividers. Each row carries the header that
    * should appear above it, if any.
    */
-  const { groups, ordered } = useMemo(() => {
+  /**
+   * The month, split twice over: by kind into the two columns, and inside each
+   * column by whether the deal earns. Projects and single courses are paid on
+   * completely different rules — a percentage table against a flat 2% — so
+   * reading them in one list meant holding two rulebooks at once.
+   */
+  const { groups, columns } = useMemo(() => {
     const g = splitForMonth(deals, paymentsByDeal, viewMonth, attendedMeetings)
-    const out = []
-    const push = (rows, section, header) =>
-      rows.forEach((row, i) => out.push({ row, section, header: i === 0 ? header : null }))
 
-    push(g.earning, 'earning', {
-      icon: BadgeCheck,
-      tone: 'text-green-700',
-      title: 'עסקאות מזכות',
-      count: g.earning.length,
-    })
-    push(g.notEarning, 'notEarning', {
-      icon: CircleDollarSign,
-      tone: 'text-amber-700',
-      title: 'עסקאות שאינן מזכות',
-      count: g.notEarning.length,
-    })
-    push(g.moved, 'moved', {
-      icon: Receipt,
-      tone: 'text-slate-500',
-      title: 'עברו לחודש אחר',
-      count: g.moved.length,
-    })
-    return { groups: g, ordered: out }
+    const order = (rows) => {
+      const out = []
+      const push = (list, section, header) =>
+        list.forEach((row, i) => out.push({ row, section, header: i === 0 ? header : null }))
+      const of = (section) => rows.filter((r) => r.section === section)
+
+      push(of('earning'), 'earning', {
+        icon: BadgeCheck,
+        tone: 'text-green-700',
+        title: 'מזכות',
+        count: of('earning').length,
+      })
+      push(of('notEarning'), 'notEarning', {
+        icon: CircleDollarSign,
+        tone: 'text-amber-700',
+        title: 'אינן מזכות',
+        count: of('notEarning').length,
+      })
+      push(of('moved'), 'moved', {
+        icon: Receipt,
+        tone: 'text-slate-500',
+        title: 'עברו לחודש אחר',
+        count: of('moved').length,
+      })
+      return out
+    }
+
+    // Tagged once here so each row knows its section without a second lookup.
+    const tagged = [
+      ...g.earning.map((r) => ({ ...r, section: 'earning' })),
+      ...g.notEarning.map((r) => ({ ...r, section: 'notEarning' })),
+      ...g.moved.map((r) => ({ ...r, section: 'moved' })),
+    ]
+    const isCourse = (d) => d.kind === 'course'
+
+    return {
+      groups: g,
+      columns: [
+        {
+          key: 'project',
+          title: 'פרויקטים',
+          hint: 'לפי טבלת האחוזים',
+          rows: order(tagged.filter((r) => !isCourse(r))),
+        },
+        {
+          key: 'course',
+          title: 'קורסים בודדים',
+          hint: '2% בגבייה מלאה',
+          rows: order(tagged.filter(isCourse)),
+        },
+      ],
+    }
   }, [deals, paymentsByDeal, viewMonth, attendedMeetings])
 
   // The headline total counts what this month is credited for — the struck rows
@@ -197,6 +234,25 @@ export default function DealsPanel({ agentName, isManager, meetings, year, month
       setToast({ type: 'error', text: err.message || 'רישום החיוב נכשל' })
     } finally {
       setChargeSaving(false)
+    }
+  }
+
+  /**
+   * Remove a charge that should not have been recorded.
+   *
+   * A charge is what decides a deal's month, so a wrong one moves the deal to
+   * the wrong month — and without this there was no way back except editing the
+   * database by hand. The opening-balance row (the collection that existed
+   * before any of this) is deliberately removable too: it is a guess at a date,
+   * and sometimes the guess is what needs correcting.
+   */
+  const removeCharge = async (payment, deal) => {
+    try {
+      await deletePayment(payment.id, deal.id)
+      setToast({ type: 'success', text: 'החיוב בוטל' })
+      load()
+    } catch (err) {
+      setToast({ type: 'error', text: err.message || 'ביטול החיוב נכשל' })
     }
   }
 
@@ -532,14 +588,23 @@ export default function DealsPanel({ agentName, isManager, meetings, year, month
         </div>
       ) : error ? (
         <div className="card p-4 text-sm text-red-700">{error}</div>
-      ) : ordered.length === 0 ? (
+      ) : columns.every((c) => c.rows.length === 0) ? (
         <div className="card flex flex-col items-center gap-2 py-14 text-center">
           <Handshake className="h-8 w-8 text-slate-300" aria-hidden="true" />
           <p className="text-sm text-slate-500">אין עסקאות רשומות בחודש זה</p>
         </div>
       ) : (
-        <div className="card divide-y divide-slate-100 overflow-hidden">
-          {ordered.map(({ row: d, section, header }) => {
+        <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-2">
+        {columns.map((col) => (
+        <div key={col.key} className="card divide-y divide-slate-100 overflow-hidden">
+          <div className="flex items-baseline justify-between gap-2 bg-slate-900 px-4 py-3">
+            <span className="text-sm font-black text-white">{col.title}</span>
+            <span className="text-[11px] font-semibold text-slate-400">{col.hint}</span>
+          </div>
+          {col.rows.length === 0 && (
+            <p className="px-4 py-8 text-center text-sm text-slate-400">אין {col.title} בחודש זה</p>
+          )}
+          {col.rows.map(({ row: d, section, header }) => {
             const state = COLLECTION_STATES[collectionState(d)]
             const b = d.billing
             // Settled in a different month: the row stays here so this month
@@ -647,11 +712,21 @@ export default function DealsPanel({ agentName, isManager, meetings, year, month
                     {b.payments.map((pay) => (
                       <li
                         key={pay.id}
-                        className="flex items-center gap-1.5 text-xs tabular-nums text-slate-500"
+                        className="group/pay flex items-center gap-1.5 text-xs tabular-nums text-slate-500"
                       >
                         <Receipt className="h-3 w-3 shrink-0 text-slate-300" aria-hidden="true" />
                         {shekel.format(Number(pay.amount))} · {formatDay(`${pay.paid_on}T12:00:00`)}
                         {pay.note && <span className="truncate text-slate-400">· {pay.note}</span>}
+                        {!isManager && (
+                          <button
+                            onClick={() => setUndoing({ payment: pay, deal: d })}
+                            aria-label="ביטול החיוב"
+                            title="ביטול החיוב"
+                            className="shrink-0 rounded-md p-0.5 text-slate-300 transition hover:bg-red-50 hover:text-red-600"
+                          >
+                            <X className="h-3.5 w-3.5" aria-hidden="true" />
+                          </button>
+                        )}
                       </li>
                     ))}
                   </ul>
@@ -697,9 +772,11 @@ export default function DealsPanel({ agentName, isManager, meetings, year, month
             </Fragment>
             )
           })}
+        </div>
+        ))}
 
           {/* Four colours are meaningless without this. */}
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 bg-slate-50 px-4 py-3">
+          <div className="card flex flex-wrap items-center gap-x-4 gap-y-1.5 px-4 py-3 lg:col-span-2">
             {LEGEND.map((l) => (
               <span key={l.key} className="inline-flex items-center gap-1.5 text-[11px] text-slate-500">
                 <span
@@ -800,6 +877,23 @@ export default function DealsPanel({ agentName, isManager, meetings, year, month
           </div>,
           document.body
         )}
+
+      {undoing && (
+        <ConfirmDialog
+          title="לבטל את החיוב?"
+          message={`חיוב על ${shekel.format(Number(undoing.payment.amount || 0))} מתאריך ${formatDay(
+            `${undoing.payment.paid_on}T12:00:00`
+          )} יימחק. אם בגללו העסקה עברה לחודש אחר — היא תחזור לחודש שבו הייתה.`}
+          confirmLabel="כן, בטל"
+          cancelLabel="השאר"
+          onConfirm={() => {
+            const u = undoing
+            setUndoing(null)
+            removeCharge(u.payment, u.deal)
+          }}
+          onCancel={() => setUndoing(null)}
+        />
+      )}
 
       {confirming && (
         <ConfirmDialog

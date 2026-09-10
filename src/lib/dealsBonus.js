@@ -9,8 +9,10 @@
 //     here, the month is simply recalculated.
 //
 //   • Single courses (תיווך and the like — not a project) are their own line:
-//     a flat 2% of the deal, for deals up to ₪6,000. They do not feed the
-//     percentage table.
+//     a flat 2% of the deal, for deals up to ₪6,000, and ONLY once the course
+//     has been collected in FULL. A course is small enough that a part payment
+//     is not a milestone the way ₪3,000 of a project is — it is simply unpaid.
+//     They do not feed the percentage table.
 //
 //   • The percentage table is keyed on the SALE total of qualifying projects.
 //     Collection decides whether a project qualifies; once it does, its full
@@ -123,24 +125,45 @@ export function calcDealBonus(deals = [], attendedMeetings = 0) {
   const bracket = SALES_BRACKETS.find((b) => qualifiedSales >= b.min) || null
   const salesBonus = bracket ? qualifiedSales * bracket.rate : 0
 
-  // ── Single courses: their own 2% line ──
-  const courseLines = courses.map((d) => ({
-    deal: d,
-    eligible: num(d.amount) <= COURSE_MAX,
-    bonus: num(d.amount) <= COURSE_MAX ? num(d.amount) * COURSE_RATE : 0,
-  }))
+  // ── Single courses: their own 2% line, once fully collected ──
+  //
+  // A part-paid course earns nothing. Unlike a project, where ₪3,000 is a real
+  // milestone, half a ₪1,800 course is just a course that has not been paid for.
+  const courseLines = courses.map((d) => {
+    const price = num(d.amount)
+    const paid = d.collected === null || d.collected === undefined ? 0 : num(d.collected)
+    const eligible = price > 0 && price <= COURSE_MAX && paid >= price
+    return {
+      deal: d,
+      eligible,
+      // Why it is not earning, so the page can say it rather than guess.
+      reason: eligible ? null : price > COURSE_MAX ? 'above_course_max' : 'course_not_collected',
+      bonus: eligible ? price * COURSE_RATE : 0,
+    }
+  })
   const coursesBonus = courseLines.reduce((s, c) => s + c.bonus, 0)
 
   // ── Collection bonus ──
   // The base is the month's counting business — the projects that qualified for
-  // the percentage table, plus every single course — and the top is what was
-  // collected against those same deals. A project that did not qualify is out of
-  // both, so it neither drags the rate down nor props it up.
-  const coursesSales = courses.reduce((s, d) => s + num(d.amount), 0)
+  // the percentage table, plus the single courses that were collected — and the
+  // top is what was collected against those SAME deals. Anything absent from one
+  // side is absent from the other, so nothing can drag the rate down or prop it
+  // up from outside the set being measured.
+  //
+  // A course joins once it is collected in FULL. Deliberately not the `eligible`
+  // flag: that also fails a course priced above ₪6,000, and the cap governs the
+  // size of the 2% commission, not whether the money arrived. A collected course
+  // is collected, and this measures collection.
+  const collectedCourses = courses.filter((d) => {
+    const price = num(d.amount)
+    const paid = d.collected === null || d.collected === undefined ? 0 : num(d.collected)
+    return price > 0 && paid >= price
+  })
+  const coursesSales = collectedCourses.reduce((s, d) => s + num(d.amount), 0)
   const collectionBase = qualifiedSales + coursesSales
   const collectionCollected =
     qualified.reduce((s, d) => s + num(d.collected), 0) +
-    courses.reduce((s, d) => s + num(d.collected), 0)
+    collectedCourses.reduce((s, d) => s + num(d.collected), 0)
   const collectionRate = collectionBase > 0 ? collectionCollected / collectionBase : 0
   const collectionUnlocked = collectionBase >= COLLECTION_BONUS_MIN_SALES
   const collectionBracket = collectionUnlocked

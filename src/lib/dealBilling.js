@@ -31,11 +31,11 @@ const num = (v) => Number(v || 0)
  * 5,000 it counts only twice a month (calcDealBonus enforces that part, since
  * it depends on the other deals in the month).
  *
- * A single course is its own 2% line and is not gated on collection at all, so
- * it counts from the day it is written.
+ * A single course earns only once it is collected in FULL, so its floor is its
+ * own price — and the month it is credited to is the month it was paid off.
  */
 export function qualifyingFloor(deal) {
-  return deal?.kind === 'course' ? 0 : QUALIFY_PARTIAL
+  return deal?.kind === 'course' ? num(deal?.amount) : QUALIFY_PARTIAL
 }
 
 /** 'YYYY-MM' from a date or ISO string. The month is the unit everything here works in. */
@@ -65,10 +65,9 @@ export function billingFor(deal, payments = []) {
   const floor = qualifyingFloor(deal)
   let paid = 0
   let completedOn = null
-  // A course counts from the day it is written; a project from the charge that
-  // takes it over ₪3,000. THIS is the date that decides which month is credited
-  // — not the one that settles the deal in full.
-  let qualifiedOn = floor === 0 ? deal?.deal_date || null : null
+  // The charge that takes a project over ₪3,000, or a course over its own price.
+  // THIS is the date that decides which month is credited.
+  let qualifiedOn = floor <= 0 ? deal?.deal_date || null : null
 
   for (const p of rows) {
     paid += num(p.amount)
@@ -94,6 +93,8 @@ export const REJECT_REASON = {
   below_minimum: 'נגבה פחות מ־3,000 ₪',
   partial_allowance_used:
     'כבר נוצלו החודש 2 עסקאות בטווח 3,000–5,000 ₪ — כדי שזו תזכה צריך לגבות מעל 5,000 ₪',
+  course_not_collected: 'קורס בודד מזכה רק בגבייה מלאה',
+  above_course_max: 'קורס בודד מזכה עד 6,000 ₪ בלבד',
 }
 
 /**
@@ -150,7 +151,10 @@ export function splitForMonth(deals, paymentsByDeal, viewMonth, attendedMeetings
       attendedMeetings
     )
     for (const d of bonus.qualified) earns.add(d.id)
-    for (const c of bonus.courseLines) earns.add(c.deal.id)
+    for (const c of bonus.courseLines) {
+      if (c.eligible) earns.add(c.deal.id)
+      else why.set(c.deal.id, c.reason)
+    }
     for (const r of bonus.rejected) why.set(r.deal.id, r.reason)
   }
 

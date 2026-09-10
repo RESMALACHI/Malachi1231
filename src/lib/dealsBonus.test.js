@@ -61,6 +61,21 @@ test('single courses are a flat 2%, and only up to ₪6,000', () => {
   assert.equal(calcDealBonus([course(6001, 6001)], OK).coursesBonus, 0)
 })
 
+test('a single course earns nothing until it is collected in full', () => {
+  assert.equal(calcDealBonus([course(1800, 1800)], OK).coursesBonus, 36, 'paid in full')
+  assert.equal(calcDealBonus([course(1800, 1799)], OK).coursesBonus, 0, 'one shekel short')
+  assert.equal(calcDealBonus([course(1800, 0)], OK).coursesBonus, 0)
+  assert.equal(calcDealBonus([course(1800, null)], OK).coursesBonus, 0, 'nothing recorded')
+})
+
+test('a part-paid course is out of the collection base AND its numerator', () => {
+  // 90,000 of qualifying projects, plus a 1,800 course that is half paid. The
+  // course must not appear on either side, or the rate would be wrong.
+  const b = calcDealBonus([project(90000, 90000), course(1800, 900)], OK)
+  assert.equal(b.collectionBase, 90000)
+  assert.equal(b.collectionCollected, 90000)
+})
+
 // ── The collection bonus ────────────────────────────────────────────────────
 // collected ÷ (qualifying projects + single courses) × 100.
 
