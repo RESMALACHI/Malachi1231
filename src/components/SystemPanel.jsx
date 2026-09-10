@@ -1,7 +1,16 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Activity, Inbox, MessageCircleOff, RefreshCw, Users, Webhook } from 'lucide-react'
+import {
+  Activity,
+  Inbox,
+  MessageCircleOff,
+  RefreshCw,
+  TriangleAlert,
+  Users,
+  Webhook,
+} from 'lucide-react'
 import { supabase } from '../lib/supabaseClient'
 import { AGENTS } from '../lib/agents'
+import { getSummaryState } from '../services/whatsappService'
 import Spinner from './Spinner'
 
 /** "לפני 4 דקות" — how long ago, in the words people use. */
@@ -32,7 +41,11 @@ export default function SystemPanel() {
     const midnight = new Date()
     midnight.setHours(0, 0, 0, 0)
 
-    const [lastMeeting, unassigned, leadsToday, freshLeads, sources, wa, waHealth] = await Promise.all([
+    // The live answer to "is the bot connected" comes from Green API itself.
+    // app_settings.wa_health only remembers what happened on the LAST send,
+    // which may have been hours ago and may never have been a send at all.
+    const [lastMeeting, unassigned, leadsToday, freshLeads, sources, wa, waHealth, waLive] =
+      await Promise.all([
       supabase.from('meetings').select('created_at')
         .order('created_at', { ascending: false }).limit(1).maybeSingle(),
       supabase.from('meetings').select('id', { count: 'exact', head: true }).is('agent_name', null),
@@ -42,6 +55,9 @@ export default function SystemPanel() {
       supabase.from('lead_sources').select('id', { count: 'exact', head: true }).eq('active', true),
       supabase.from('whatsapp_instances').select('id', { count: 'exact', head: true }),
       supabase.from('app_settings').select('value').eq('key', 'wa_health').maybeSingle(),
+      // Never let this one break the panel — it is a network call to a third
+      // party, and everything else here is worth showing without it.
+      getSummaryState().catch(() => null),
     ])
 
     setStat({
@@ -52,6 +68,7 @@ export default function SystemPanel() {
       sources: sources.count || 0,
       wa: wa.count || 0,
       waHealth: waHealth.data?.value || null,
+      waLive,
     })
   }, [])
 
@@ -75,9 +92,29 @@ export default function SystemPanel() {
   // what happened to app_settings.wa_health and this is where it surfaces.
   // The distinction matters enormously to whoever reads it: a failed send does
   // NOT mean a lost meeting — ".פגישה" still creates the calendar event.
-  const waBad = stat.waHealth && stat.waHealth.ok === false
+  //
+  // TWO SIGNALS, and they answer different questions. Reading only the second
+  // one had this panel calling a working bot dead:
+  //
+  //   waLive   — Green API, asked right now: is the number linked? This is the
+  //              only thing that actually means "connected".
+  //   waHealth — what happened the last time the bot TRIED to send. It is a
+  //              latch: it stays as it was until the next attempt, and on a
+  //              quiet morning that can be hours. It is also written on a
+  //              "quotaExceeded" webhook, which is Green API warning about an
+  //              allowance — not a send that failed, and not a disconnection.
+  const h = stat.waHealth
+  const linked = stat.waLive ? stat.waLive.state === 'authorized' : null
+  // A quota warning is a warning. Everything else recorded as not-ok is a real
+  // send that really failed.
+  const quotaWarn = h?.ok === false && h.reason === 'quota_exceeded'
+  const sendFailed = h?.ok === false && !quotaWarn
+
+  // Red is reserved for "the bot cannot do its job", and we say that only when
+  // something actually proves it: a failed send, or Green API telling us the
+  // number is not linked. A quota warning while the number is linked is amber.
+  const waBad = sendFailed || linked === false
   const WA_REASON = {
-    quota_exceeded: 'המכסה של ווצאפ (Green API) נגמרה — צריך לחדש את החבילה.',
     no_instance: 'אין מכשיר ווצאפ מחובר לבוט.',
     network_error: 'ווצאפ לא ענה. ייתכן שזו תקלה זמנית.',
   }
@@ -91,16 +128,59 @@ export default function SystemPanel() {
               <MessageCircleOff className="h-5 w-5" aria-hidden="true" />
             </span>
             <div className="min-w-0">
-              <p className="font-bold text-red-900">הבוט לא מצליח לשלוח הודעות בווצאפ</p>
+              <p className="font-bold text-red-900">
+                {linked === false
+                  ? 'המספר של הבוט לא מקושר לווצאפ'
+                  : 'הבוט לא מצליח לשלוח הודעות בווצאפ'}
+              </p>
               <p className="text-xs leading-relaxed text-red-800">
-                {WA_REASON[stat.waHealth.reason] ||
-                  `השליחה נכשלה (${stat.waHealth.reason || 'סיבה לא ידועה'}).`}{' '}
+                {linked === false ? (
+                  <>
+                    Green API מדווח על מצב <b>{stat.waLive?.state || 'לא ידוע'}</b>. צריך לסרוק
+                    QR מחדש בעמוד <b>סיכום יום</b>.{' '}
+                  </>
+                ) : (
+                  <>
+                    {WA_REASON[h.reason] || `השליחה נכשלה (${h.reason || 'סיבה לא ידועה'}).`}{' '}
+                  </>
+                )}
                 <b>הפגישות עצמן נוצרות כרגיל</b> — פקודת <b>.פגישה</b> ממשיכה ליצור את
-                האירוע ביומן, רק הודעת האישור בקבוצה לא נשלחת. נכשל לאחרונה {ago(stat.waHealth.at)}.
+                האירוע ביומן, רק הודעת האישור בקבוצה לא נשלחת.
+                {sendFailed && <> נכשל לאחרונה {ago(h.at)}.</>}
               </p>
             </div>
           </div>
         </div>
+      )}
+
+      {/* A quota warning while the number is still linked. Worth saying, not
+          worth alarming about: nothing has failed yet. */}
+      {!waBad && quotaWarn && (
+        <div className="rounded-2xl border border-amber-300 bg-amber-50 p-4">
+          <div className="flex items-center gap-3">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-500 text-white">
+              <TriangleAlert className="h-5 w-5" aria-hidden="true" />
+            </span>
+            <div className="min-w-0">
+              <p className="font-bold text-amber-900">Green API מדווח על חריגה במכסה</p>
+              <p className="text-xs leading-relaxed text-amber-800">
+                {linked
+                  ? 'הבוט מחובר ועובד — הדיווח הזה הוא אזהרה על המכסה של החבילה, לא תקלה. '
+                  : ''}
+                אם המכסה תיגמר, הודעות האישור בקבוצה יפסיקו להישלח (הפגישות עצמן ימשיכו
+                להיווצר). הדיווח התקבל {ago(h.at)}.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* When the bot is fine, say so — an empty space reads as "unknown". */}
+      {!waBad && !quotaWarn && linked && (
+        <p className="px-1 text-xs text-slate-500">
+          ווצאפ הבוט מחובר
+          {h?.ok === true && <> · שליחה אחרונה הצליחה {ago(h.at)}</>}
+        </p>
       )}
 
       {/* The health line */}
