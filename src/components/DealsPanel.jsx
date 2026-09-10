@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Fragment, useCallback, useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import {
   Plus,
@@ -10,6 +10,9 @@ import {
   Wallet,
   Link2,
   MessageCircle,
+  BadgeCheck,
+  CircleDollarSign,
+  Receipt,
 } from 'lucide-react'
 import Spinner from './Spinner'
 import Toast from './Toast'
@@ -17,6 +20,8 @@ import ConfirmDialog from './ConfirmDialog'
 import DealsBonusCard from './DealsBonusCard'
 import { formatDay, formatTime } from '../lib/dateUtils'
 import { getDeals, saveDeal, deleteDeal, todayISO, dealsReport } from '../services/dealsService'
+import { addPayment, loadMonthBilling } from '../services/dealPaymentsService'
+import { monthKeyOf, monthName, splitByBilling } from '../lib/dealBilling'
 import { clientName } from '../lib/meetingTitle'
 import { collectionState } from '../lib/dealsBonus'
 import { useModalLock } from '../lib/useModalLock'
@@ -71,6 +76,10 @@ const LEGEND = [
  */
 export default function DealsPanel({ agentName, isManager, meetings, year, month, monthLabel }) {
   const [deals, setDeals] = useState([])
+  const [paymentsByDeal, setPaymentsByDeal] = useState({})
+  // The deal a charge is being recorded against, plus the form for it.
+  const [charging, setCharging] = useState(null)
+  const [chargeSaving, setChargeSaving] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [form, setForm] = useState(null) // null = closed
@@ -83,7 +92,16 @@ export default function DealsPanel({ agentName, isManager, meetings, year, month
     setLoading(true)
     setError(null)
     try {
-      setDeals(await getDeals(isManager ? null : agentName, year, month))
+      // Not just the deals signed this month: also any deal, from any month,
+      // that was CHARGED this month — that charge is this month's credit and
+      // the month has to be able to show it.
+      const { deals: rows, paymentsByDeal: pays } = await loadMonthBilling(
+        isManager ? null : agentName,
+        year,
+        month
+      )
+      setDeals(rows)
+      setPaymentsByDeal(pays)
     } catch (err) {
       setError(err.message || 'שגיאה בטעינת העסקאות')
     } finally {
@@ -95,9 +113,45 @@ export default function DealsPanel({ agentName, isManager, meetings, year, month
     load()
   }, [load])
 
+  const viewMonth = monthKeyOf(year, month)
+
+  /**
+   * The month's deals in three groups, then flattened back into one list so the
+   * card keeps its single set of dividers. Each row carries the header that
+   * should appear above it, if any.
+   */
+  const { groups, ordered } = useMemo(() => {
+    const g = splitByBilling(deals, paymentsByDeal, viewMonth)
+    const out = []
+    const push = (rows, section, header) =>
+      rows.forEach((row, i) => out.push({ row, section, header: i === 0 ? header : null }))
+
+    push(g.billed, 'billed', {
+      icon: BadgeCheck,
+      tone: 'text-green-700',
+      title: 'עסקאות שחויבו',
+      count: g.billed.length,
+    })
+    push(g.unbilled, 'unbilled', {
+      icon: CircleDollarSign,
+      tone: 'text-amber-700',
+      title: 'עסקאות שטרם חויבו במלואן',
+      count: g.unbilled.length,
+    })
+    push(g.moved, 'moved', {
+      icon: Receipt,
+      tone: 'text-slate-500',
+      title: 'חויבו בחודש אחר',
+      count: g.moved.length,
+    })
+    return { groups: g, ordered: out }
+  }, [deals, paymentsByDeal, viewMonth])
+
+  // The headline total counts what this month is credited for — the struck rows
+  // belong to another month and must not be added in twice.
   const total = useMemo(
-    () => deals.reduce((sum, d) => sum + Number(d.amount || 0), 0),
-    [deals]
+    () => groups.billed.reduce((sum, d) => sum + Number(d.amount || 0), 0),
+    [groups]
   )
 
   // The month's meetings, newest first — the dropdown to attach a deal to.
@@ -105,6 +159,40 @@ export default function DealsPanel({ agentName, isManager, meetings, year, month
     () => [...meetings].sort((a, b) => new Date(b.meeting_date) - new Date(a.meeting_date)),
     [meetings]
   )
+
+  /**
+   * Record a charge. The DATE is the whole point: it decides which month gets
+   * the credit, and whether this deal stays in the month it was signed in or
+   * moves to the one it was settled in.
+   */
+  const submitCharge = async (e) => {
+    e.preventDefault()
+    if (!charging || chargeSaving) return
+    const amount = Number(charging.amount)
+    if (!Number.isFinite(amount) || amount === 0) {
+      setToast({ type: 'error', text: 'הסכום חייב להיות מספר' })
+      return
+    }
+    setChargeSaving(true)
+    try {
+      await addPayment(charging.deal.id, {
+        amount,
+        paidOn: charging.paidOn,
+        note: charging.note,
+      })
+      const landed = monthKeyOf(year, month) === charging.paidOn.slice(0, 7)
+      setCharging(null)
+      setToast({
+        type: 'success',
+        text: landed ? 'החיוב נרשם' : `החיוב נרשם וזוכה ל${monthName(charging.paidOn.slice(0, 7))}`,
+      })
+      load()
+    } catch (err) {
+      setToast({ type: 'error', text: err.message || 'רישום החיוב נכשל' })
+    } finally {
+      setChargeSaving(false)
+    }
+  }
 
   const openNew = () => setForm({ ...EMPTY, dealDate: todayISO() })
 
@@ -444,17 +532,32 @@ export default function DealsPanel({ agentName, isManager, meetings, year, month
         </div>
       ) : error ? (
         <div className="card p-4 text-sm text-red-700">{error}</div>
-      ) : deals.length === 0 ? (
+      ) : ordered.length === 0 ? (
         <div className="card flex flex-col items-center gap-2 py-14 text-center">
           <Handshake className="h-8 w-8 text-slate-300" aria-hidden="true" />
           <p className="text-sm text-slate-500">אין עסקאות רשומות בחודש זה</p>
         </div>
       ) : (
         <div className="card divide-y divide-slate-100 overflow-hidden">
-          {deals.map((d) => {
+          {ordered.map(({ row: d, section, header }) => {
             const state = COLLECTION_STATES[collectionState(d)]
+            const b = d.billing
+            // Settled in a different month: the row stays here so this month
+            // keeps its record, struck through rather than quietly removed.
+            const struck = section === 'moved'
+            const Icon = header?.icon
             return (
-            <div key={d.id} className="flex items-start gap-3 p-4">
+            <Fragment key={d.id}>
+            {header && (
+              <div className="flex items-center gap-2 bg-slate-50 px-4 py-2.5">
+                <Icon className={`h-4 w-4 shrink-0 ${header.tone}`} aria-hidden="true" />
+                <span className={`text-xs font-black ${header.tone}`}>{header.title}</span>
+                <span className="rounded-full bg-white px-2 py-0.5 text-[11px] font-bold tabular-nums text-slate-500">
+                  {header.count}
+                </span>
+              </div>
+            )}
+            <div className={`flex items-start gap-3 p-4 ${struck ? 'bg-slate-50/70 opacity-70' : ''}`}>
               <span
                 className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-white ${state.dot}`}
                 title={state.label}
@@ -463,9 +566,23 @@ export default function DealsPanel({ agentName, isManager, meetings, year, month
               </span>
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-                  <span className="text-lg font-extrabold tabular-nums text-slate-900">
+                  <span
+                    className={`text-lg font-extrabold tabular-nums ${
+                      struck ? 'text-slate-400 line-through' : 'text-slate-900'
+                    }`}
+                  >
                     {shekel.format(Number(d.amount || 0))}
                   </span>
+                  {section === 'unbilled' && b?.remaining > 0 && (
+                    <span className="rounded-full bg-red-100 px-2 py-0.5 text-[11px] font-bold tabular-nums text-red-700">
+                      חסר {shekel.format(b.remaining)}
+                    </span>
+                  )}
+                  {section === 'billed' && b?.creditedFrom && (
+                    <span className="rounded-full bg-green-100 px-2 py-0.5 text-[11px] font-bold text-green-800">
+                      זיכוי מ{monthName(b.creditedFrom)}
+                    </span>
+                  )}
                   <span
                     className={`rounded-full px-2 py-0.5 text-[11px] font-bold tabular-nums ${state.chip}`}
                   >
@@ -494,13 +611,62 @@ export default function DealsPanel({ agentName, isManager, meetings, year, month
                   </p>
                 )}
                 {d.notes && (
-                  <p className="mt-1 whitespace-pre-line text-sm leading-relaxed text-slate-500">
+                  <p
+                    className={`mt-1 whitespace-pre-line text-sm leading-relaxed ${
+                      struck ? 'text-slate-400 line-through' : 'text-slate-500'
+                    }`}
+                  >
                     {d.notes}
                   </p>
+                )}
+
+                {/* Why this one is struck. Without the reason a greyed-out row
+                    just looks like a bug. */}
+                {struck && (
+                  <p className="mt-1.5 flex items-center gap-1.5 text-xs font-bold text-slate-500">
+                    <Receipt className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                    חויבה במלואה ב-{formatDay(`${b.completedOn}T12:00:00`)} — זוכתה ל
+                    {monthName(b.creditMonth)}
+                  </p>
+                )}
+
+                {/* The charges themselves, so a part-paid deal shows its history
+                    rather than one number that hides two dates. */}
+                {b?.payments?.length > 0 && section !== 'moved' && (
+                  <ul className="mt-1.5 space-y-0.5">
+                    {b.payments.map((pay) => (
+                      <li
+                        key={pay.id}
+                        className="flex items-center gap-1.5 text-xs tabular-nums text-slate-500"
+                      >
+                        <Receipt className="h-3 w-3 shrink-0 text-slate-300" aria-hidden="true" />
+                        {shekel.format(Number(pay.amount))} · {formatDay(`${pay.paid_on}T12:00:00`)}
+                        {pay.note && <span className="truncate text-slate-400">· {pay.note}</span>}
+                      </li>
+                    ))}
+                  </ul>
                 )}
               </div>
               {!isManager && (
                 <div className="flex shrink-0 gap-1">
+                  {section === 'unbilled' && (
+                    <button
+                      onClick={() =>
+                        setCharging({
+                          deal: d,
+                          amount: String(b?.remaining || ''),
+                          paidOn: todayISO(),
+                          note: '',
+                        })
+                      }
+                      aria-label="הוספת עדכון חיוב"
+                      title="עדכון חיוב"
+                      className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-amber-500 px-3 text-xs font-bold text-white transition hover:bg-amber-600 active:scale-95"
+                    >
+                      <Receipt className="h-4 w-4" aria-hidden="true" />
+                      עדכון חיוב
+                    </button>
+                  )}
                   <button
                     onClick={() => openEdit(d)}
                     aria-label="עריכת העסקה"
@@ -518,6 +684,7 @@ export default function DealsPanel({ agentName, isManager, meetings, year, month
                 </div>
               )}
             </div>
+            </Fragment>
             )
           })}
 
@@ -535,6 +702,94 @@ export default function DealsPanel({ agentName, isManager, meetings, year, month
           </div>
         </div>
       )}
+
+      {charging &&
+        createPortal(
+          <div
+            className="fixed inset-0 z-[120] flex items-end justify-center bg-slate-900/50 p-0 backdrop-blur-sm sm:items-center sm:p-4"
+            onClick={() => !chargeSaving && setCharging(null)}
+          >
+            <form
+              onSubmit={submitCharge}
+              onClick={(e) => e.stopPropagation()}
+              className="w-full max-w-md rounded-t-3xl bg-white p-5 shadow-2xl sm:rounded-3xl"
+            >
+              <div className="mb-1 flex items-center justify-between gap-2">
+                <h3 className="flex items-center gap-2 text-lg font-extrabold text-slate-900">
+                  <Receipt className="h-5 w-5 text-amber-500" aria-hidden="true" />
+                  עדכון חיוב
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => setCharging(null)}
+                  disabled={chargeSaving}
+                  aria-label="סגירה"
+                  className="rounded-xl p-1.5 text-slate-400 transition hover:bg-slate-100"
+                >
+                  <X className="h-5 w-5" aria-hidden="true" />
+                </button>
+              </div>
+              <p className="mb-4 text-xs leading-relaxed text-slate-500">
+                {shekel.format(Number(charging.deal.amount || 0))}
+                {charging.deal.client_name ? ` · ${charging.deal.client_name}` : ''} · נותרו{' '}
+                <b>{shekel.format(charging.deal.billing?.remaining || 0)}</b>
+              </p>
+
+              <label className="mb-1 block text-xs font-bold text-slate-600">סכום החיוב</label>
+              <input
+                autoFocus
+                value={charging.amount}
+                onChange={(e) => setCharging((c) => ({ ...c, amount: e.target.value }))}
+                inputMode="decimal"
+                className="mb-3 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-lg font-bold tabular-nums outline-none transition focus:border-amber-400 focus:bg-white"
+              />
+
+              <label className="mb-1 block text-xs font-bold text-slate-600">תאריך החיוב</label>
+              <input
+                type="date"
+                value={charging.paidOn}
+                onChange={(e) => setCharging((c) => ({ ...c, paidOn: e.target.value }))}
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-amber-400 focus:bg-white"
+              />
+              {/* The one thing worth spelling out, because it is the whole
+                  behaviour: the date decides the month, not today's date. */}
+              <p className="mb-3 mt-1 text-[11px] leading-relaxed text-slate-500">
+                התאריך קובע לאיזה חודש נזקף החיוב. אם הוא בחודש אחר — העסקה תזוכה שם,
+                והשורה כאן תסומן כמי שחויבה בחודש אחר.
+              </p>
+
+              <label className="mb-1 block text-xs font-bold text-slate-600">
+                הערה <span className="font-normal text-slate-400">(רשות)</span>
+              </label>
+              <input
+                value={charging.note}
+                onChange={(e) => setCharging((c) => ({ ...c, note: e.target.value }))}
+                placeholder="לדוגמה: תשלום שני מתוך שניים"
+                className="mb-4 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm outline-none transition focus:border-amber-400 focus:bg-white"
+              />
+
+              <div className="flex gap-2">
+                <button
+                  type="submit"
+                  disabled={chargeSaving}
+                  className="btn-primary flex-1 !py-3 disabled:opacity-60"
+                >
+                  {chargeSaving ? <Spinner /> : <Save className="h-4 w-4" aria-hidden="true" />}
+                  רישום החיוב
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCharging(null)}
+                  disabled={chargeSaving}
+                  className="btn-ghost !py-3 sm:w-32"
+                >
+                  ביטול
+                </button>
+              </div>
+            </form>
+          </div>,
+          document.body
+        )}
 
       {confirming && (
         <ConfirmDialog
