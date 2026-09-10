@@ -28,7 +28,7 @@ import {
   stopAllMusic,
 } from '../lib/chime'
 
-const POLL_MS = 20_000 // how often the board re-reads the database
+const POLL_MS = 8_000 // how often the board re-reads the database
 const PACE_MS = 5 * 60_000 // the 14-day average barely moves — refresh it lazily
 const ROTATE_MS = 26_000 // seconds each mode holds the screen
 const CELEBRATE_MS = 7_000 // the "just happened" glow on the hero

@@ -240,6 +240,7 @@ Deno.serve(async (req) => {
       .in('key', [
         'wa_webhook_token', 'wa_meeting_group',
         'gcal_sa_json', 'gcal_cal_zahar', 'gcal_cal_ramatgan',
+        'sync_token',
       ])
     const cfg: Record<string, string> = {}
     for (const r of cfgRows || []) cfg[r.key] = r.value
@@ -546,6 +547,26 @@ Deno.serve(async (req) => {
     if (!created.id) {
       await reply('⚠️ לא הצלחתי ליצור את האירוע ביומן. נסו שוב.')
       return ok({ error: 'create_failed', detail: created })
+    }
+
+    // Nudge the sync so the meeting reaches the app in seconds rather than
+    // whenever somebody happens to have a browser open.
+    //
+    // The row only exists once sync-meetings has read the iCal feed. That runs
+    // on a 5-minute cron, and the reason bookings normally appear within
+    // seconds is an accident: any agent with the dashboard open re-syncs every
+    // 60s. On a quiet floor nobody is holding it open, and a booking then waits
+    // for the cron — measured in the wild at 89s, 104s, and as long as 9
+    // minutes, which is how a meeting turns up on the wall board a minute and a
+    // half after it was made.
+    //
+    // Best-effort and deliberately not awaited: a failed nudge only means the
+    // cron catches it, exactly as before. Same pattern as lead-meeting.
+    if (cfg.sync_token) {
+      fetch(
+        `${Deno.env.get('SUPABASE_URL')}/functions/v1/sync-meetings?t=${encodeURIComponent(cfg.sync_token)}`,
+        { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }
+      ).catch(() => {})
     }
 
     const typeHe = p.type === 'zoom' ? 'זום' : 'פרונטלי'
