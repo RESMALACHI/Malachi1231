@@ -105,8 +105,13 @@ function makeTrack(url, volume) {
 
 /** The milestone song is cut to the banner's length; see MILESTONE_MS. */
 const milestone = makeTrack(milestoneUrl, 0.55)
-/** The deal song plays to its own end — the board's biggest moment. */
-const deal = makeTrack(dealUrl, 0.75)
+/**
+ * The deal song plays to its own end, at full volume.
+ *
+ * 1 is the ceiling: an <audio> element cannot be pushed past its source, so
+ * anything louder than this is the TV set's own volume knob, not ours.
+ */
+const deal = makeTrack(dealUrl, 1)
 
 /** Called from the sound-toggle click. Creates/*resumes* the context. */
 export function initAudio() {
