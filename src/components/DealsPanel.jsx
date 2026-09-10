@@ -133,7 +133,7 @@ export default function DealsPanel({ agentName, isManager, meetings, year, month
    * completely different rules — a percentage table against a flat 2% — so
    * reading them in one list meant holding two rulebooks at once.
    */
-  const { groups, columns } = useMemo(() => {
+  const { groups, columns, credited } = useMemo(() => {
     const g = splitForMonth(deals, paymentsByDeal, viewMonth, attendedMeetings)
 
     const order = (rows) => {
@@ -173,6 +173,11 @@ export default function DealsPanel({ agentName, isManager, meetings, year, month
 
     return {
       groups: g,
+      // What this month is CREDITED for: everything except the deals that moved
+      // to another month. The bonus card and the tiles must read this and not
+      // the raw month load, or the headline keeps counting a deal the columns
+      // below it show as gone.
+      credited: [...g.earning, ...g.notEarning],
       columns: [
         {
           key: 'project',
@@ -343,9 +348,9 @@ export default function DealsPanel({ agentName, isManager, meetings, year, month
   return (
     <div className="flex flex-col gap-4">
       {/* Personal pay — agents only, and never inside the exported report. */}
-      {!isManager && !loading && !error && deals.length > 0 && (
+      {!isManager && !loading && !error && credited.length > 0 && (
         <DealsBonusCard
-          deals={deals}
+          deals={credited}
           attendedMeetings={attendedMeetings}
           monthLabel={monthLabel}
         />
@@ -370,7 +375,9 @@ export default function DealsPanel({ agentName, isManager, meetings, year, month
           </span>
           <div>
             <p className="text-xs font-semibold text-slate-500">מספר עסקאות</p>
-            <p className="text-2xl font-extrabold tabular-nums text-slate-900">{deals.length}</p>
+            <p className="text-2xl font-extrabold tabular-nums text-slate-900">
+              {credited.length}
+            </p>
           </div>
         </div>
       </div>
@@ -384,9 +391,9 @@ export default function DealsPanel({ agentName, isManager, meetings, year, month
           </button>
           <button
             onClick={openReport}
-            disabled={deals.length === 0 || reportBusy}
+            disabled={credited.length === 0 || reportBusy}
             title={
-              deals.length === 0
+              credited.length === 0
                 ? 'אין עסקאות לשלוח בחודש זה'
                 : 'שליחת פירוט העסקאות לאפרת בווצאפ'
             }
