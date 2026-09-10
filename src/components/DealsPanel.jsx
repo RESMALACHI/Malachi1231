@@ -113,6 +113,12 @@ export default function DealsPanel({ agentName, isManager, meetings, year, month
     load()
   }, [load])
 
+  // The 10-meeting gate counts meetings the client actually attended.
+  const attendedMeetings = useMemo(
+    () => meetings.filter((m) => m.status === 'attended' && m.agent_name === agentName).length,
+    [meetings, agentName]
+  )
+
   const viewMonth = monthKeyOf(year, month)
 
   /**
@@ -277,12 +283,6 @@ export default function DealsPanel({ agentName, isManager, meetings, year, month
   // Editing stays over the current deal list, rather than pushing the form to
   // the top of the page and making the selected deal disappear from view.
   useModalLock(!!form, () => !saving && setForm(null))
-
-  // The 10-meeting gate counts meetings the client actually attended.
-  const attendedMeetings = useMemo(
-    () => meetings.filter((m) => m.status === 'attended' && m.agent_name === agentName).length,
-    [meetings, agentName]
-  )
 
   return (
     <div className="flex flex-col gap-4">
