@@ -22,7 +22,7 @@ const STATUS = {
  * loud for a mic that decides on its own when you have finished, and a
  * half-heard sentence sent early would be graded as what you "said".
  */
-export default function CallScreen({ persona, rep, voice, opening, onFinish }) {
+export default function CallScreen({ persona, rep, voice, opening, onFinish, phone = false, compact = false }) {
   const ar = persona.lang === 'ar'
   const [transcript, setTranscript] = useState(() => [
     { role: 'prospect', text: persona.opening, trust: persona.startTrust },
@@ -239,7 +239,8 @@ export default function CallScreen({ persona, rep, voice, opening, onFinish }) {
   return (
     <div className="flex h-full min-h-0 flex-col">
       {/* ── Call bar ── */}
-      <div className="relative z-20 flex items-center gap-3 px-4 pb-2 pt-3.5 sm:px-6">
+      {/* Full screen on a phone, so the bar clears the notch / status bar. */}
+      <div className="relative z-20 flex items-center gap-3 px-4 pb-2 pt-[max(0.875rem,env(safe-area-inset-top))] sm:px-6">
         <span className="flex items-center gap-2 rounded-full border border-emerald-400/25 bg-emerald-400/10 px-2.5 py-1 text-[11px] font-extrabold text-emerald-200">
           <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-300" aria-hidden="true" />
           בשיחה
@@ -258,30 +259,43 @@ export default function CallScreen({ persona, rep, voice, opening, onFinish }) {
       </div>
 
       {/* ── The prospect ── */}
-      <div className="relative z-10 flex flex-col items-center px-4 pb-3 pt-2 text-center">
-        <PersonaAvatar persona={persona} size={92} speaking={status === 'speaking'} />
-        <p className="mt-3 text-lg font-extrabold text-white" style={ar ? { fontFamily: AR_FONT } : undefined}>
-          {persona.name}
-          <span className="ms-2 text-xs font-bold text-slate-100/45">
-            {persona.age} · <span style={ar ? { fontFamily: AR_FONT } : undefined}>{persona.city}</span>
-          </span>
-        </p>
-        <span
-          className={`mt-1 inline-flex items-center gap-1.5 text-[11px] font-bold tracking-wide ${
-            status === 'yours' ? 'text-amber-300' : status === 'listening' ? 'text-rose-300' : 'text-slate-100/50'
-          }`}
-        >
-          {status === 'thinking' && <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" />}
-          {status === 'speaking' && <AudioLines className="h-3 w-3" aria-hidden="true" />}
-          {status === 'yours' ? 'תורך לדבר' : `${persona.name} ${STATUS[status] || ''}`}
-        </span>
+      <div
+        className={`relative z-10 flex flex-col items-center px-4 text-center ${compact ? 'pb-2 pt-0' : 'pb-3 pt-1 sm:pt-2'}`}
+      >
+        {/* Compact (a short screen — usually the keyboard is up): face, name and
+            state on one row, so the words being answered keep their room. */}
+        <div className={compact ? 'flex items-center gap-2.5' : 'flex flex-col items-center'}>
+          <PersonaAvatar persona={persona} size={compact ? 38 : phone ? 76 : 92} speaking={status === 'speaking'} />
+          <div className={compact ? 'text-start' : ''}>
+            <p
+              className={`font-extrabold text-white ${compact ? 'text-sm' : 'mt-2.5 text-lg sm:mt-3'}`}
+              style={ar ? { fontFamily: AR_FONT } : undefined}
+            >
+              {persona.name}
+              <span className="ms-2 text-xs font-bold text-slate-100/45">
+                {persona.age} · <span style={ar ? { fontFamily: AR_FONT } : undefined}>{persona.city}</span>
+              </span>
+            </p>
+            <span
+              className={`inline-flex items-center gap-1.5 text-[11px] font-bold tracking-wide ${compact ? '' : 'mt-1'} ${
+                status === 'yours' ? 'text-amber-300' : status === 'listening' ? 'text-rose-300' : 'text-slate-100/50'
+              }`}
+            >
+              {status === 'thinking' && <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" />}
+              {status === 'speaking' && <AudioLines className="h-3 w-3" aria-hidden="true" />}
+              {status === 'yours' ? 'תורך לדבר' : `${persona.name} ${STATUS[status] || ''}`}
+            </span>
+          </div>
+        </div>
 
         {/* The line just said, large — the thing to answer. */}
         {lastProspect && (
           <p
             key={transcript.length}
             dir="rtl"
-            className="mt-3 max-w-2xl animate-fade-up text-xl font-extrabold leading-relaxed text-white sm:text-2xl"
+            className={`max-w-2xl animate-fade-up font-extrabold leading-relaxed text-white ${
+              compact ? 'mt-2 text-base' : 'mt-3 text-lg sm:text-2xl'
+            }`}
             style={ar ? { fontFamily: AR_FONT } : undefined}
           >
             ״{lastProspect.text}״
@@ -293,7 +307,7 @@ export default function CallScreen({ persona, rep, voice, opening, onFinish }) {
       <div ref={scrollRef} className="relative z-10 min-h-0 flex-1 overflow-y-auto px-4 pb-3 sm:px-8">
         <div className="mx-auto flex max-w-2xl flex-col gap-2">
           {history.length > 0 && (
-            <p className="mb-1 text-center text-[10px] font-bold tracking-[0.25em] text-slate-100/30">התמליל</p>
+            <p className="mb-1 text-center text-[10px] font-bold tracking-wide text-slate-100/30">התמליל</p>
           )}
           {history.map((l, i) =>
             l.role === 'rep' ? (
@@ -406,7 +420,8 @@ export default function CallScreen({ persona, rep, voice, opening, onFinish }) {
               placeholder={busy ? `${persona.name} ${STATUS[status]}` : 'מה אומרים ללקוח?'}
               autoFocus
               dir="rtl"
-              className="h-11 min-w-0 flex-1 rounded-full border border-white/15 bg-white/[0.06] px-4 text-sm font-semibold text-white placeholder:text-slate-100/35 focus:border-amber-300/60 focus:outline-none"
+              // 16px on a phone: iOS zooms the whole page into any input smaller than that.
+              className="h-11 min-w-0 flex-1 rounded-full border border-white/15 bg-white/[0.06] px-4 text-base font-semibold sm:text-sm text-white placeholder:text-slate-100/35 focus:border-amber-300/60 focus:outline-none"
             />
             <button
               type="submit"
@@ -426,7 +441,9 @@ export default function CallScreen({ persona, rep, voice, opening, onFinish }) {
           {mode === 'voice'
             ? status === 'listening'
               ? 'לחצו שוב כשסיימתם את המשפט'
-              : 'לחצו ודברו · במחשב: החזיקו רווח'
+              : phone
+                ? 'לחצו ודברו'
+                : 'לחצו ודברו · במחשב: החזיקו רווח'
             : 'Enter לשליחה'}
         </p>
       </div>

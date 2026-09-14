@@ -5,6 +5,7 @@ import { DEFAULT_SPEECH, LANGS, applyVars, parseSpeech } from '../lib/speechScri
 import { sessionMetrics } from '../lib/simMetrics'
 import { personaById } from '../lib/simPersonas'
 import { canListen, isNatural, loadVoices, pickVoice, speak, stopSpeaking } from '../lib/simVoice'
+import { useMediaQuery, useVisualViewport } from '../lib/useViewport'
 import { getSpeech } from '../services/settingsService'
 import { listSessions, saveSession, simGrade, updateSession } from '../services/trainingService'
 import Lobby from '../components/training/Lobby'
@@ -187,9 +188,36 @@ export default function TrainingPage() {
 
   const hue = phase === 'lobby' || !persona ? 40 : persona.hue
 
+  // On a phone the call takes the whole screen, like a real call does. Inside
+  // the app's frame it lost ~4rem to the header and search row and scrolled
+  // twice — page and stage — with the mic button parked below the fold. The
+  // lobby and results, which are reading, flow with the page instead of
+  // scrolling inside a box.
+  const phone = useMediaQuery('(max-width: 639px)')
+  const vp = useVisualViewport()
+  const fullscreen = phone && phase === 'call'
+
+  useEffect(() => {
+    if (!fullscreen) return
+    const root = document.documentElement
+    const prev = root.style.overflow
+    root.style.overflow = 'hidden'
+    return () => {
+      root.style.overflow = prev
+    }
+  }, [fullscreen])
+
   return (
     <div className="mx-auto max-w-5xl">
-      <div className="relative flex h-[calc(100dvh-8.5rem)] min-h-[34rem] flex-col overflow-hidden rounded-3xl border border-slate-800 bg-gradient-to-b from-slate-900 via-slate-950 to-black shadow-2xl sm:h-[calc(100dvh-7rem)]">
+      <div
+        className={
+          fullscreen
+            ? 'fixed inset-x-0 z-[70] flex flex-col overflow-hidden bg-gradient-to-b from-slate-900 via-slate-950 to-black'
+            : 'relative flex flex-col overflow-hidden rounded-3xl border border-slate-800 bg-gradient-to-b from-slate-900 via-slate-950 to-black shadow-2xl sm:h-[calc(100dvh-7rem)] sm:min-h-[34rem]'
+        }
+        // Follows the keyboard: typing mode must keep the input above the keys.
+        style={fullscreen ? { top: vp.top, height: vp.height || '100dvh' } : undefined}
+      >
         <div
           className="absolute inset-x-0 top-0 z-30 h-[3px] bg-gradient-to-l from-amber-600 via-yellow-300 to-amber-500"
           aria-hidden="true"
@@ -219,6 +247,10 @@ export default function TrainingPage() {
           {phase === 'call' && persona && (
             <CallScreen
               key={callKey}
+              // Short screen = keyboard open (or a small phone): the prospect
+              // shrinks into the top bar so the conversation keeps its room.
+              compact={phone && vp.height < 600}
+              phone={phone}
               persona={persona}
               rep={repFor(persona)}
               voice={voiceFor(persona)}

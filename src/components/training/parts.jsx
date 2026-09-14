@@ -2,6 +2,7 @@
 // colours here are white/amber at opacities — never text-slate-400..700, which
 // the light theme overrides to near-black.
 
+import { useEffect, useRef, useState } from 'react'
 import { PhoneOff, CalendarCheck2, CircleSlash } from 'lucide-react'
 import { LEVELS, initialsOf } from '../../lib/simPersonas'
 
@@ -89,7 +90,12 @@ export function ScoreRing({ score, size = 132 }) {
   const pct = known ? Math.max(0, Math.min(100, score)) / 100 : 0
   const h = known ? scoreHue(score) : 220
   return (
-    <div className="relative shrink-0" style={{ width: size, height: size }}>
+    // The glow is a box-shadow on a round wrapper, not an SVG drop-shadow: mobile
+    // browsers paint a filter's whole rectangle, which showed as a grey square.
+    <div
+      className="relative shrink-0 rounded-full"
+      style={{ width: size, height: size, boxShadow: known ? `0 0 34px -10px hsl(${h} 90% 55% / .55)` : undefined }}
+    >
       <svg viewBox="0 0 120 120" className="h-full w-full -rotate-90" aria-hidden="true">
         <circle cx="60" cy="60" r={r} fill="none" stroke="rgba(255,255,255,.08)" strokeWidth="10" />
         <circle
@@ -102,12 +108,12 @@ export function ScoreRing({ score, size = 132 }) {
           strokeLinecap="round"
           strokeDasharray={c}
           strokeDashoffset={c * (1 - pct)}
-          style={{ transition: 'stroke-dashoffset 1.1s cubic-bezier(.22,1,.36,1)', filter: `drop-shadow(0 0 8px hsl(${h} 90% 55% / .45))` }}
+          style={{ transition: 'stroke-dashoffset 1.1s cubic-bezier(.22,1,.36,1)' }}
         />
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
         <span className="text-4xl font-black tabular-nums text-white">{known ? score : '—'}</span>
-        <span className="text-[10px] font-bold tracking-[0.2em] text-slate-100/45">מתוך 100</span>
+        <span className="text-[10px] font-bold tracking-wide text-slate-100/45">מתוך 100</span>
       </div>
     </div>
   )
@@ -119,14 +125,27 @@ export function ScoreRing({ score, size = 132 }) {
  * question every agent has after a failed call.
  */
 export function TrustChart({ transcript, best, worst, bookAt, onPick }) {
+  // Drawn at the width it is shown at, one unit = one CSS pixel. A fixed
+  // 600-wide drawing scaled down to a phone shrank its 10px labels to ~5px.
+  const boxRef = useRef(null)
+  const [W, setW] = useState(600)
+  useEffect(() => {
+    const el = boxRef.current
+    if (!el) return
+    const measure = () => setW(Math.max(260, Math.round(el.clientWidth)))
+    measure()
+    const ro = new ResizeObserver(measure)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
+
   const pts = []
   transcript.forEach((t, i) => {
     if (t.role === 'prospect' && typeof t.trust === 'number') pts.push({ i, v: t.trust })
   })
-  if (pts.length < 2) return null
+  if (pts.length < 2) return <div ref={boxRef} />
 
-  const W = 600
-  const H = 150
+  const H = W < 480 ? 130 : 150
   // Time runs RIGHT to LEFT, like the page: the call starts where a Hebrew
   // reader starts reading. The scale sits on the right for the same reason.
   const pad = { l: 14, r: 26, t: 14, b: 22 }
@@ -149,8 +168,8 @@ export function TrustChart({ transcript, best, worst, bookAt, onPick }) {
   const down = markAt(worst)
 
   return (
-    <div className="w-full overflow-x-auto">
-      <svg viewBox={`0 0 ${W} ${H}`} style={svgDir} className="h-auto w-full min-w-[320px]" role="img" aria-label="אמון הלקוח לאורך השיחה">
+    <div ref={boxRef} className="w-full">
+      <svg viewBox={`0 0 ${W} ${H}`} width={W} height={H} style={svgDir} className="block max-w-full" role="img" aria-label="אמון הלקוח לאורך השיחה">
         <defs>
           <linearGradient id="trustFill" x1="0" y1="0" x2="0" y2="1">
             <stop offset="0%" stopColor="rgb(251 191 36)" stopOpacity=".35" />
@@ -176,7 +195,9 @@ export function TrustChart({ transcript, best, worst, bookAt, onPick }) {
               strokeOpacity=".45"
               strokeDasharray="4 5"
             />
-            <text x={pad.l} y={y(bookAt) - 5} textAnchor="start" fontSize="10" fill="rgb(110 231 183)" fillOpacity=".8">
+            {/* Under the line, where the turning-point labels (which sit above
+                their points) cannot land on it. */}
+            <text x={pad.l} y={y(bookAt) + 12} textAnchor="start" fontSize="10" fill="rgb(110 231 183)" fillOpacity=".8">
               מוכן להיפגש
             </text>
           </g>
@@ -191,7 +212,16 @@ export function TrustChart({ transcript, best, worst, bookAt, onPick }) {
           .map((m) => (
             <g key={m.label} className="cursor-pointer" onClick={() => onPick?.(m.tp.index)}>
               <circle cx={x(m.k)} cy={y(pts[m.k].v)} r="7" fill={m.tone} fillOpacity=".25" stroke={m.tone} strokeWidth="2" />
-              <text x={x(m.k)} y={Math.max(11, y(pts[m.k].v) - 12)} textAnchor="middle" fontSize="10.5" fontWeight="700" fill={m.tone}>
+              {/* Kept clear of the edges — a point at the very end of the call
+                  would otherwise hang its label off a narrow phone chart. */}
+              <text
+                x={Math.min(W - pad.r - 26, Math.max(pad.l + 26, x(m.k)))}
+                y={Math.max(11, y(pts[m.k].v) - 12)}
+                textAnchor="middle"
+                fontSize="11"
+                fontWeight="700"
+                fill={m.tone}
+              >
                 {m.label}
               </text>
             </g>

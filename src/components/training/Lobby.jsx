@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import { Swords, Mic, MicOff, Volume2, VolumeX, Phone, Trophy, CalendarCheck2, Flame, Users, ChevronLeft } from 'lucide-react'
 import { PERSONAS, personaById } from '../../lib/simPersonas'
+import { useMediaQuery } from '../../lib/useViewport'
 import { PersonaAvatar, LevelChip, OutcomeBadge, AR_FONT, scoreHue } from './parts'
 
 const DAY = 86_400_000
@@ -29,15 +30,16 @@ function ScorePill({ score }) {
 
 function Stat({ icon: Icon, value, label }) {
   return (
-    <div className="flex items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-2">
-      <Icon className="h-4 w-4 text-amber-300" aria-hidden="true" />
+    <div className="flex min-w-0 items-center justify-center gap-1.5 rounded-2xl border border-white/10 bg-white/[0.04] px-2 py-2 sm:gap-2 sm:px-3">
+      <Icon className="h-4 w-4 shrink-0 text-amber-300" aria-hidden="true" />
       <span className="text-lg font-black tabular-nums text-white">{value}</span>
-      <span className="text-[11px] font-bold text-slate-100/50">{label}</span>
+      <span className="truncate text-[11px] font-bold text-slate-100/50">{label}</span>
     </div>
   )
 }
 
 export default function Lobby({ agentName, sessions, team, voiceInfo, onStart, onOpen }) {
+  const phone = useMediaQuery('(max-width: 639px)')
   const week = sessions.filter((s) => Date.now() - new Date(s.created_at).getTime() < 7 * DAY)
   const scored = sessions.filter((s) => typeof s.score === 'number')
   const best = scored.reduce((mx, s) => Math.max(mx, s.score), 0)
@@ -64,8 +66,10 @@ export default function Lobby({ agentName, sessions, team, voiceInfo, onStart, o
   }, [team])
 
   return (
-    <div className="h-full overflow-y-auto">
-      <div className="mx-auto max-w-5xl px-4 pb-10 pt-4 sm:px-6">
+    // Scrolls inside the stage on a desktop; on a phone the stage grows and the
+    // page itself scrolls — one scroll, not two nested ones.
+    <div className="sm:h-full sm:overflow-y-auto">
+      <div className="mx-auto max-w-5xl px-4 pb-8 pt-5 sm:px-6 sm:pb-10 sm:pt-4">
         {/* ── Title ── */}
         <div className="flex flex-wrap items-end gap-3">
           <div className="min-w-0 flex-1">
@@ -78,7 +82,8 @@ export default function Lobby({ agentName, sessions, team, voiceInfo, onStart, o
               אף ליד אמיתי לא נשרף.
             </p>
           </div>
-          <div className="flex flex-wrap gap-2">
+          {/* Three equal tiles across a phone; a loose row beside the title above it. */}
+          <div className="grid w-full grid-cols-3 gap-2 sm:flex sm:w-auto sm:flex-wrap">
             <Stat icon={Flame} value={week.length} label="השבוע" />
             <Stat icon={Trophy} value={scored.length ? best : '—'} label="שיא" />
             <Stat icon={CalendarCheck2} value={sessions.filter((s) => s.outcome === 'booked').length} label="נקבעו" />
@@ -106,7 +111,9 @@ export default function Lobby({ agentName, sessions, team, voiceInfo, onStart, o
             {voiceInfo.natural
               ? 'קול טבעי'
               : voiceInfo.anyVoice
-                ? 'קול רובוטי — ב-Microsoft Edge הלקוחות נשמעים כמו אנשים'
+                ? phone
+                  ? 'קול רובוטי · ב-Edge נשמע טבעי'
+                  : 'קול רובוטי — ב-Microsoft Edge הלקוחות נשמעים כמו אנשים'
                 : 'אין קול במכשיר — הלקוח יופיע כטקסט'}
           </span>
         </div>
@@ -120,15 +127,19 @@ export default function Lobby({ agentName, sessions, team, voiceInfo, onStart, o
               <button
                 key={p.id}
                 onClick={() => onStart(p)}
-                className="group relative flex flex-col overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-b from-white/[0.08] to-white/[0.02] p-4 text-start transition duration-200 hover:-translate-y-0.5 hover:border-amber-300/40 hover:shadow-2xl hover:shadow-black/40 active:scale-[0.99]"
+                aria-label={`להתקשר ל${p.name}`}
+                className="group relative flex flex-col overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-b from-white/[0.08] to-white/[0.02] p-3.5 text-start sm:p-4 transition duration-200 hover:-translate-y-0.5 hover:border-amber-300/40 hover:shadow-2xl hover:shadow-black/40 active:scale-[0.99]"
               >
                 <span
                   className="pointer-events-none absolute -end-10 -top-10 h-32 w-32 rounded-full opacity-25 blur-2xl transition group-hover:opacity-45"
                   style={{ background: `hsl(${p.hue} 90% 55%)` }}
                   aria-hidden="true"
                 />
+                {/* A phone gets a dense row — face, who, the line they open with,
+                    and a round call button — so six prospects fit in two
+                    screens instead of four. Wider screens get the full card. */}
                 <div className="relative flex items-center gap-3">
-                  <PersonaAvatar persona={p} size={52} />
+                  <PersonaAvatar persona={p} size={phone ? 46 : 52} />
                   <div className="min-w-0 flex-1">
                     <p className="text-base font-extrabold text-white">
                       <span style={arStyle}>{p.name}</span>
@@ -137,28 +148,42 @@ export default function Lobby({ agentName, sessions, team, voiceInfo, onStart, o
                     <p className="truncate text-[12px] font-semibold text-slate-100/55" style={arStyle}>
                       {p.job} · {p.city}
                     </p>
+                    <p className="mt-1 line-clamp-2 text-[12.5px] font-bold leading-snug text-slate-100/80 sm:hidden" style={arStyle}>
+                      ״{p.teaser}״
+                    </p>
                   </div>
                   {bestBy[p.id] != null && (
-                    <span className="flex flex-col items-center" title="השיא שלך מולו">
+                    <span className="hidden flex-col items-center sm:flex" title="השיא שלך מולו">
                       <ScorePill score={bestBy[p.id]} />
                       <span className="mt-0.5 text-[9px] font-bold text-slate-100/35">שיא</span>
                     </span>
                   )}
+                  <span
+                    className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-amber-300 to-amber-500 text-slate-900 shadow-lg shadow-amber-500/25 sm:hidden"
+                    aria-hidden="true"
+                  >
+                    <Phone className="h-5 w-5" />
+                  </span>
                 </div>
                 <p
-                  className="relative mt-3 rounded-2xl border border-white/10 bg-black/20 px-3 py-2 text-[13.5px] font-bold leading-relaxed text-slate-100/85"
+                  className="relative mt-3 hidden rounded-2xl border border-white/10 bg-black/20 px-3 py-2 text-[13.5px] font-bold leading-relaxed text-slate-100/85 sm:block"
                   style={arStyle}
                 >
                   ״{p.teaser}״
                 </p>
-                <div className="relative mt-3 flex items-center gap-2">
+                <div className="relative mt-2.5 flex items-center gap-2 sm:mt-3">
                   <LevelChip level={p.level} />
                   {ar && (
                     <span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[10.5px] font-bold text-slate-100/70">
                       ערבית
                     </span>
                   )}
-                  <span className="ms-auto inline-flex items-center gap-1.5 rounded-full bg-gradient-to-l from-amber-500 to-yellow-400 px-3 py-1.5 text-[12px] font-extrabold text-slate-900 shadow-lg shadow-amber-500/20 transition group-hover:brightness-105">
+                  {bestBy[p.id] != null && (
+                    <span className="flex items-center gap-1 text-[10.5px] font-bold text-slate-100/45 sm:hidden">
+                      שיא <ScorePill score={bestBy[p.id]} />
+                    </span>
+                  )}
+                  <span className="ms-auto hidden items-center gap-1.5 rounded-full bg-gradient-to-l from-amber-500 to-yellow-400 px-3 py-1.5 text-[12px] font-extrabold text-slate-900 shadow-lg shadow-amber-500/20 transition group-hover:brightness-105 sm:inline-flex">
                     <Phone className="h-3.5 w-3.5" aria-hidden="true" />
                     להתקשר
                   </span>
@@ -171,7 +196,7 @@ export default function Lobby({ agentName, sessions, team, voiceInfo, onStart, o
         {/* ── My calls ── */}
         {sessions.length > 0 && (
           <div className="mt-8">
-            <p className="mb-2 text-[10.5px] font-extrabold tracking-[0.2em] text-amber-300/80">השיחות האחרונות שלך</p>
+            <p className="mb-2 text-[10.5px] font-extrabold tracking-wide text-amber-300/80">השיחות האחרונות שלך</p>
             <div className="divide-y divide-white/5 overflow-hidden rounded-2xl border border-white/10 bg-white/[0.03]">
               {sessions.slice(0, 8).map((s) => {
                 const p = personaById(s.persona)
@@ -202,7 +227,7 @@ export default function Lobby({ agentName, sessions, team, voiceInfo, onStart, o
         {/* ── The team (managers) ── */}
         {teamRows && teamRows.length > 0 && (
           <div className="mt-8">
-            <p className="mb-2 flex items-center gap-1.5 text-[10.5px] font-extrabold tracking-[0.2em] text-amber-300/80">
+            <p className="mb-2 flex items-center gap-1.5 text-[10.5px] font-extrabold tracking-wide text-amber-300/80">
               <Users className="h-3.5 w-3.5" aria-hidden="true" />
               הצוות · 30 הימים האחרונים
             </p>

@@ -50,8 +50,9 @@ export default function ResultScreen({ persona, session, grading, onRegrade, onA
   }
 
   return (
-    <div className="h-full overflow-y-auto">
-      <div className="mx-auto max-w-3xl px-4 pb-10 pt-4 sm:px-6">
+    // One scroll on a phone (the page's), an inner one on a desktop — see Lobby.
+    <div className="sm:h-full sm:overflow-y-auto">
+      <div className="mx-auto max-w-3xl px-4 pb-8 pt-5 sm:px-6 sm:pb-10 sm:pt-4">
         {/* ── Header ── */}
         <div className="flex flex-wrap items-center gap-3">
           <PersonaAvatar persona={persona} size={44} />
@@ -82,7 +83,7 @@ export default function ResultScreen({ persona, session, grading, onRegrade, onA
             {grading ? (
               <p className="text-base font-extrabold text-white/80">מנתח את השיחה מול התסריט של המכללה…</p>
             ) : fb?.verdict ? (
-              <p className="text-lg font-extrabold leading-relaxed text-white">{fb.verdict}</p>
+              <p className="text-base font-extrabold leading-relaxed text-white sm:text-lg">{fb.verdict}</p>
             ) : (
               <div>
                 <p className="text-base font-extrabold text-white/80">הציון לא הגיע הפעם</p>
@@ -115,7 +116,7 @@ export default function ResultScreen({ persona, session, grading, onRegrade, onA
 
         {/* ── What was really going on ── */}
         <div className="mt-3 rounded-2xl border border-violet-300/15 bg-violet-400/[0.07] px-4 py-3">
-          <p className="flex items-center gap-1.5 text-[10.5px] font-extrabold tracking-[0.18em] text-violet-200/80">
+          <p className="flex items-center gap-1.5 text-[10.5px] font-extrabold tracking-wide text-violet-200/80">
             <EyeOff className="h-3.5 w-3.5" aria-hidden="true" />
             מה {persona.gender === 'f' ? 'היא' : 'הוא'} לא אמר{persona.gender === 'f' ? 'ה' : ''}
           </p>
@@ -132,7 +133,7 @@ export default function ResultScreen({ persona, session, grading, onRegrade, onA
 
         {/* ── Trust ── */}
         <div className="mt-4 rounded-2xl border border-white/10 bg-white/[0.03] px-3 pb-2 pt-3">
-          <p className="px-1 text-[10.5px] font-extrabold tracking-[0.18em] text-amber-300/80">
+          <p className="px-1 text-[10.5px] font-extrabold tracking-wide text-amber-300/80">
             האמון של {persona.name} לאורך השיחה
           </p>
           <TrustChart transcript={transcript} best={tp.best} worst={tp.worst} bookAt={persona.bookAt} onPick={jumpTo} />
@@ -141,7 +142,7 @@ export default function ResultScreen({ persona, session, grading, onRegrade, onA
         {/* ── Fixes ── */}
         {fb?.fixes?.length > 0 && (
           <div className="mt-5">
-            <p className="mb-2 flex items-center gap-1.5 text-[10.5px] font-extrabold tracking-[0.18em] text-rose-200/80">
+            <p className="mb-2 flex items-center gap-1.5 text-[10.5px] font-extrabold tracking-wide text-rose-200/80">
               <Target className="h-3.5 w-3.5" aria-hidden="true" />
               מה לשנות
             </p>
@@ -174,7 +175,7 @@ export default function ResultScreen({ persona, session, grading, onRegrade, onA
         {/* ── Strengths ── */}
         {fb?.strengths?.length > 0 && (
           <div className="mt-5 space-y-1.5">
-            <p className="mb-1 flex items-center gap-1.5 text-[10.5px] font-extrabold tracking-[0.18em] text-emerald-200/80">
+            <p className="mb-1 flex items-center gap-1.5 text-[10.5px] font-extrabold tracking-wide text-emerald-200/80">
               <Check className="h-3.5 w-3.5" aria-hidden="true" />
               מה עבד
             </p>
@@ -192,24 +193,28 @@ export default function ResultScreen({ persona, session, grading, onRegrade, onA
           <div className="mt-5 flex items-start gap-3 rounded-2xl bg-gradient-to-l from-amber-400 to-yellow-300 px-4 py-3.5 text-slate-900 shadow-lg shadow-amber-500/20">
             <Sparkles className="mt-0.5 h-5 w-5 shrink-0" aria-hidden="true" />
             <div>
-              <p className="text-[10.5px] font-black tracking-[0.15em] text-slate-900/60">לתרגל לפני השיחה הבאה</p>
+              <p className="text-[10.5px] font-black tracking-wide text-slate-900/60">לתרגל לפני השיחה הבאה</p>
               <p className="mt-0.5 text-[14.5px] font-extrabold leading-relaxed">{fb.practice}</p>
             </div>
           </div>
         )}
 
         {/* ── Actions ── */}
-        <div className="mt-6 flex flex-wrap justify-center gap-2">
+        {/* Full-width, thumb-sized buttons on a phone; a centred pair above it. */}
+        <div className="mt-6 grid gap-2 sm:flex sm:flex-wrap sm:justify-center">
           <button
             onClick={onAgain}
-            className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-l from-amber-500 to-yellow-400 px-5 py-3 text-sm font-extrabold text-slate-900 shadow-lg shadow-amber-500/25 transition hover:brightness-105 active:scale-95"
+            className="inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-l from-amber-500 to-yellow-400 px-5 py-3 text-sm font-extrabold text-slate-900 shadow-lg shadow-amber-500/25 transition hover:brightness-105 active:scale-95"
           >
             <RotateCcw className="h-4 w-4" aria-hidden="true" />
-            שוב מול <span style={arStyle}>{persona.name}</span>
+            {/* One flex item — as two, the button's gap was added to the space. */}
+            <span>
+              שוב מול <span style={arStyle}>{persona.name}</span>
+            </span>
           </button>
           <button
             onClick={onLobby}
-            className="inline-flex items-center gap-2 rounded-2xl border border-white/15 px-5 py-3 text-sm font-extrabold text-white transition hover:bg-white/10 active:scale-95"
+            className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/15 px-5 py-3 text-sm font-extrabold text-white transition hover:bg-white/10 active:scale-95"
           >
             <Users className="h-4 w-4" aria-hidden="true" />
             לקוח אחר
