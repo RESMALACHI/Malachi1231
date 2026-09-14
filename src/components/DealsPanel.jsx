@@ -13,6 +13,8 @@ import {
   BadgeCheck,
   CircleDollarSign,
   Receipt,
+  Search,
+  CalendarClock,
 } from 'lucide-react'
 import Spinner from './Spinner'
 import Toast from './Toast'
@@ -23,6 +25,7 @@ import { getDeals, saveDeal, deleteDeal, todayISO, dealsReport } from '../servic
 import { addPayment, deletePayment, loadMonthBilling } from '../services/dealPaymentsService'
 import { REJECT_REASON, monthKeyOf, monthName, splitForMonth } from '../lib/dealBilling'
 import { clientName } from '../lib/meetingTitle'
+import { searchMeetings } from '../services/meetingsService'
 import { collectionState } from '../lib/dealsBonus'
 import { useModalLock } from '../lib/useModalLock'
 import { openWhatsApp } from '../lib/whatsappLink'
@@ -43,16 +46,20 @@ function meetingLabel(m) {
 const EMPTY = {
   id: null,
   meetingId: '',
+  // The linked meeting itself, when it was found by search and so is not among
+  // this month's meetings — the client's name is read off it.
+  pickedMeeting: null,
   amount: '',
   collected: '',
   kind: 'project',
   notes: '',
   dealDate: '',
+  offerDate: '',
 }
 
 const KINDS = [
   { key: 'project', label: 'פרוייקט', hint: 'נכנס לטבלת האחוזים' },
-  { key: 'course', label: 'קורס בודד', hint: '2% עד ₪6,000' },
+  { key: 'course', label: 'קורס בודד', hint: '2% בגבייה מלאה, עד ₪6,000' },
 ]
 
 /** Colours for the collection states. The rule itself lives in lib/dealsBonus. */
@@ -84,6 +91,10 @@ export default function DealsPanel({ agentName, isManager, meetings, year, month
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [form, setForm] = useState(null) // null = closed
+  // Searching for a meeting from any time, from inside the deal form.
+  const [meetingQuery, setMeetingQuery] = useState('')
+  const [meetingResults, setMeetingResults] = useState([])
+  const [meetingSearching, setMeetingSearching] = useState(false)
   const [saving, setSaving] = useState(false)
   const [confirming, setConfirming] = useState(null)
   const [toast, setToast] = useState(null)
@@ -119,6 +130,36 @@ export default function DealsPanel({ agentName, isManager, meetings, year, month
     () => meetings.filter((m) => m.status === 'attended' && m.agent_name === agentName).length,
     [meetings, agentName]
   )
+
+  // Debounced: every keystroke would otherwise be a query against all meetings.
+  useEffect(() => {
+    const q = meetingQuery.trim()
+    if (q.length < 2) {
+      setMeetingResults([])
+      return undefined
+    }
+    let alive = true
+    setMeetingSearching(true)
+    const t = setTimeout(async () => {
+      try {
+        const found = await searchMeetings(agentName, q)
+        if (alive) setMeetingResults(found.slice(0, 12))
+      } catch {
+        if (alive) setMeetingResults([])
+      } finally {
+        if (alive) setMeetingSearching(false)
+      }
+    }, 300)
+    return () => {
+      alive = false
+      clearTimeout(t)
+    }
+  }, [meetingQuery, agentName])
+
+  // A closed form forgets its search, so the next one opens clean.
+  useEffect(() => {
+    if (!form) setMeetingQuery('')
+  }, [form])
 
   const viewMonth = monthKeyOf(year, month)
 
@@ -267,11 +308,16 @@ export default function DealsPanel({ agentName, isManager, meetings, year, month
     setForm({
       id: d.id,
       meetingId: d.meeting_id || '',
+      // Not loaded, but enough to label the option when the linked meeting is
+      // from another month and therefore not in this month's list.
+      pickedMeeting: d.meeting_id ? { id: d.meeting_id, label: d.client_name || 'פגישה משויכת' } : null,
       amount: String(d.amount ?? ''),
+      // Shown read-only on edit — collection is changed through the charges.
       collected: d.collected === null || d.collected === undefined ? '' : String(d.collected),
       kind: d.kind === 'course' ? 'course' : 'project',
       notes: d.notes || '',
       dealDate: d.deal_date,
+      offerDate: d.offer_date || '',
     })
 
   const submit = async (e) => {
@@ -284,7 +330,11 @@ export default function DealsPanel({ agentName, isManager, meetings, year, month
     }
     setSaving(true)
     try {
-      const meeting = meetings.find((m) => m.id === form.meetingId)
+      // The linked meeting may be this month's or one found by search from any
+      // time; either way its title is where the client's name comes from.
+      const meeting =
+        meetings.find((m) => m.id === form.meetingId) ||
+        (form.pickedMeeting?.title ? form.pickedMeeting : null)
       await saveDeal({
         id: form.id,
         meetingId: form.meetingId || null,
@@ -294,12 +344,19 @@ export default function DealsPanel({ agentName, isManager, meetings, year, month
         // whole calendar title — every other screen parses the title before
         // showing it, and this one stored it raw, which is how the wall board
         // came to announce a closed deal under a meeting's headline.
-        clientName: meeting ? clientName(meeting.title, meeting.agent_name) : null,
+        // On edit with an unchanged link the meeting may not be loaded at all —
+        // keep the name the deal already has rather than wiping it.
+        clientName: meeting
+          ? clientName(meeting.title, meeting.agent_name)
+          : form.id && form.pickedMeeting?.label && form.meetingId
+            ? form.pickedMeeting.label
+            : null,
         amount,
         collected: form.collected,
         kind: form.kind,
         notes: form.notes,
         dealDate: form.dealDate || todayISO(),
+        offerDate: form.offerDate || null,
       })
       setForm(null)
       setToast({ type: 'success', text: form.id ? 'העסקה עודכנה' : 'העסקה נוספה' })
@@ -451,18 +508,66 @@ export default function DealsPanel({ agentName, isManager, meetings, year, month
             <select
               id="deal-meeting"
               value={form.meetingId}
-              onChange={(e) => setForm({ ...form, meetingId: e.target.value })}
+              onChange={(e) => setForm({ ...form, meetingId: e.target.value, pickedMeeting: null })}
               className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-slate-400 focus:bg-white"
             >
               <option value="">— ללא שיוך לפגישה —</option>
+              {/* A meeting from another month, picked by search or already
+                  linked: it has to be an option or the select cannot show it. */}
+              {form.pickedMeeting && !linkable.some((m) => m.id === form.pickedMeeting.id) && (
+                <option value={form.pickedMeeting.id}>
+                  {form.pickedMeeting.title
+                    ? meetingLabel(form.pickedMeeting)
+                    : form.pickedMeeting.label}
+                </option>
+              )}
               {linkable.map((m) => (
                 <option key={m.id} value={m.id}>
                   {meetingLabel(m)}
                 </option>
               ))}
             </select>
+
+            {/* A deal often closes a month or more after the meeting that won it
+                — ספיר met in August and paid in September. The list above only
+                holds this month, so search covers everything else. */}
+            <div className="relative mt-2">
+              <Search
+                className="pointer-events-none absolute inset-y-0 start-3 my-auto h-4 w-4 text-slate-400"
+                aria-hidden="true"
+              />
+              <input
+                value={meetingQuery}
+                onChange={(e) => setMeetingQuery(e.target.value)}
+                placeholder="חיפוש פגישה מכל הזמנים — שם לקוח או טלפון"
+                className="w-full rounded-xl border border-dashed border-slate-300 bg-white py-2.5 pe-3 ps-9 text-sm outline-none transition focus:border-slate-400"
+              />
+            </div>
+            {meetingQuery.trim().length >= 2 && (
+              <div className="mt-1.5 max-h-52 overflow-y-auto rounded-xl border border-slate-200 bg-white">
+                {meetingSearching ? (
+                  <p className="px-3 py-2.5 text-xs text-slate-400">מחפש…</p>
+                ) : meetingResults.length === 0 ? (
+                  <p className="px-3 py-2.5 text-xs text-slate-400">לא נמצאו פגישות</p>
+                ) : (
+                  meetingResults.map((m) => (
+                    <button
+                      key={m.id}
+                      type="button"
+                      onClick={() => {
+                        setForm({ ...form, meetingId: m.id, pickedMeeting: m })
+                        setMeetingQuery('')
+                      }}
+                      className="block w-full border-b border-slate-100 px-3 py-2.5 text-start text-sm text-slate-700 transition last:border-0 hover:bg-slate-50"
+                    >
+                      {meetingLabel(m)}
+                    </button>
+                  ))
+                )}
+              </div>
+            )}
             <p className="mt-1 text-xs text-slate-400">
-              מוצגות פגישות החודש הנבחר. אפשר גם להשאיר ללא שיוך.
+              ברשימה — פגישות החודש. לפגישה מחודש אחר — חפשו אותה. אפשר גם להשאיר ללא שיוך.
             </p>
           </div>
 
@@ -513,30 +618,46 @@ export default function DealsPanel({ agentName, isManager, meetings, year, month
               />
               <p className="mt-1 text-xs text-slate-400">מחיר העסקה המלא</p>
             </div>
-            <div>
-              <label
-                htmlFor="deal-collected"
-                className="mb-1.5 block text-sm font-bold text-slate-700"
-              >
-                גבייה בפועל (₪)
-              </label>
-              <input
-                id="deal-collected"
-                type="number"
-                inputMode="decimal"
-                min="0"
-                step="1"
-                value={form.collected}
-                onChange={(e) => setForm({ ...form, collected: e.target.value })}
-                placeholder="טרם נגבה"
-                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm tabular-nums outline-none transition focus:border-slate-400 focus:bg-white"
-              />
-              <p className="mt-1 text-xs text-slate-400">
-                {form.kind === 'course'
-                  ? 'לא משפיע על קורס בודד'
-                  : 'קובע אם הפרויקט זכאי; הבונוס מחושב לפי מלוא סכום המכירה'}
-              </p>
-            </div>
+            {form.id ? (
+              // On an existing deal collection is the charges, so it is shown,
+              // not typed: editing a number here would silently disagree with
+              // the dated history the month is actually decided by.
+              <div>
+                <span className="mb-1.5 block text-sm font-bold text-slate-700">נגבה עד כה</span>
+                <p className="rounded-xl border border-slate-200 bg-slate-100 px-4 py-3 text-sm font-bold tabular-nums text-slate-700">
+                  {form.collected === '' ? 'טרם נרשמה גבייה' : shekel.format(Number(form.collected))}
+                </p>
+                <p className="mt-1 text-xs text-slate-400">
+                  לשינוי — "עדכון חיוב" בכרטיס העסקה, או × ליד חיוב קיים.
+                </p>
+              </div>
+            ) : (
+              <div>
+                <label
+                  htmlFor="deal-collected"
+                  className="mb-1.5 block text-sm font-bold text-slate-700"
+                >
+                  נגבה בעת הסגירה (₪)
+                </label>
+                <input
+                  id="deal-collected"
+                  type="number"
+                  inputMode="decimal"
+                  min="0"
+                  step="1"
+                  value={form.collected}
+                  onChange={(e) => setForm({ ...form, collected: e.target.value })}
+                  placeholder="טרם נגבה"
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm tabular-nums outline-none transition focus:border-slate-400 focus:bg-white"
+                />
+                <p className="mt-1 text-xs text-slate-400">
+                  {form.kind === 'course'
+                    ? 'קורס בודד מזכה רק כשנגבה במלואו'
+                    : 'פרויקט מזכה מ־3,000 ₪; הבונוס מחושב לפי מלוא סכום המכירה'}
+                  {' '}נרשם כחיוב בתאריך העסקה.
+                </p>
+              </div>
+            )}
           </div>
 
           <div>
@@ -551,6 +672,22 @@ export default function DealsPanel({ agentName, isManager, meetings, year, month
               required
               className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm tabular-nums outline-none transition focus:border-slate-400 focus:bg-white"
             />
+          </div>
+
+          <div>
+            <label htmlFor="deal-offer" className="mb-1.5 block text-sm font-bold text-slate-700">
+              תאריך הצעה <span className="font-normal text-slate-400">(רשות)</span>
+            </label>
+            <input
+              id="deal-offer"
+              type="date"
+              value={form.offerDate}
+              onChange={(e) => setForm({ ...form, offerDate: e.target.value })}
+              className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm tabular-nums outline-none transition focus:border-slate-400 focus:bg-white"
+            />
+            <p className="mt-1 text-xs text-slate-400">
+              מתי נמסרה ההצעה ללקוח. לתיעוד בלבד — לא משנה חודש ולא בונוס.
+            </p>
           </div>
 
           <div>
@@ -675,6 +812,12 @@ export default function DealsPanel({ agentName, isManager, meetings, year, month
                   <span className="text-xs tabular-nums text-slate-400">
                     {formatDay(`${d.deal_date}T12:00:00`)}
                   </span>
+                  {d.offer_date && (
+                    <span className="inline-flex items-center gap-1 text-xs tabular-nums text-slate-400">
+                      <CalendarClock className="h-3 w-3" aria-hidden="true" />
+                      הצעה {formatDay(`${d.offer_date}T12:00:00`)}
+                    </span>
+                  )}
                 </div>
                 {d.client_name && (
                   <p className="mt-0.5 flex items-center gap-1 truncate text-sm text-slate-600">

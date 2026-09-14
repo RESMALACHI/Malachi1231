@@ -32,7 +32,7 @@ export async function getDeals(agentName, year, month) {
   let q = supabase
     .from('deals')
     .select(
-      'id, meeting_id, agent_name, client_name, amount, collected, kind, notes, deal_date, created_at'
+      'id, meeting_id, agent_name, client_name, amount, collected, kind, notes, deal_date, offer_date, created_at'
     )
     .gte('deal_date', from)
     .lt('deal_date', to)
@@ -46,7 +46,21 @@ export async function getDeals(agentName, year, month) {
   return data || []
 }
 
-/** Create or update a deal. Returns the saved row. */
+/**
+ * Create or update a deal. Returns the saved row.
+ *
+ * COLLECTION IS NOT A FIELD OF THE DEAL ANY MORE — it is the dated charges in
+ * deal_payments, and deals.collected is only their cached sum. This used to write
+ * the form's "collected" straight onto the deal and create no charge, so a course
+ * saved as fully paid showed on the page as unpaid: the page reads the charges,
+ * and there were none. (Reported on ספיר שמואלי's course, 14/09.)
+ *
+ *   New deal  — an amount collected at signing becomes the deal's first charge,
+ *               dated to the deal.
+ *   Edit      — collected is not written at all. It is changed by adding or
+ *               removing a charge, and writing a form value over it here would
+ *               overwrite the real sum with a stale one.
+ */
 export async function saveDeal({
   id,
   meetingId,
@@ -57,29 +71,53 @@ export async function saveDeal({
   kind,
   notes,
   dealDate,
+  offerDate,
 }) {
   const row = {
     meeting_id: meetingId || null,
     agent_name: agentName,
     client_name: clientName || null,
     amount: Number(amount) || 0,
-    // Empty stays NULL, never 0: "not recorded yet" and "collected nothing"
-    // pay out differently, and guessing between them is guessing about money.
-    collected:
-      collected === '' || collected === null || collected === undefined
-        ? null
-        : Number(collected),
     kind: kind === 'course' ? 'course' : 'project',
     notes: notes?.trim() || null,
     deal_date: dealDate,
+    // Documentation only — see the column's own comment.
+    offer_date: offerDate || null,
     updated_at: new Date().toISOString(),
   }
-  const q = id
-    ? supabase.from('deals').update(row).eq('id', id)
-    : supabase.from('deals').insert(row)
 
-  const { data, error } = await q.select().single()
+  if (id) {
+    const { data, error } = await supabase.from('deals').update(row).eq('id', id).select().single()
+    if (error) throw error
+    return data
+  }
+
+  // Empty stays NULL, never 0: "not recorded yet" and "collected nothing" are
+  // different answers and the bonus treats them differently.
+  const atSigning =
+    collected === '' || collected === null || collected === undefined ? null : Number(collected)
+
+  const { data, error } = await supabase
+    .from('deals')
+    .insert({ ...row, collected: atSigning })
+    .select()
+    .single()
   if (error) throw error
+
+  if (atSigning && atSigning > 0) {
+    const { error: payErr } = await supabase.from('deal_payments').insert({
+      deal_id: data.id,
+      amount: atSigning,
+      paid_on: dealDate,
+      note: 'נגבה בעת רישום העסקה',
+    })
+    // The deal exists either way; a failed charge must say so rather than leave
+    // a deal whose cached total claims money its history does not show.
+    if (payErr) {
+      await supabase.from('deals').update({ collected: null }).eq('id', data.id)
+      throw new Error('העסקה נשמרה, אבל רישום הגבייה נכשל — הוסיפו אותה ב"עדכון חיוב"')
+    }
+  }
   return data
 }
 

@@ -111,7 +111,7 @@ export async function loadMonthBilling(agentName, year, month) {
     let q = supabase
       .from('deals')
       .select(
-        'id, meeting_id, agent_name, client_name, amount, collected, kind, notes, deal_date, created_at'
+        'id, meeting_id, agent_name, client_name, amount, collected, kind, notes, deal_date, offer_date, created_at'
       )
       .in('id', extraIds)
     // A manager sees everyone; an agent only ever sees their own, here as well.
