@@ -26,7 +26,7 @@ const PAGE_TITLES = {
   '/whatsapp': 'ווצאפ',
   '/clients': 'לקוחות',
   '/day-summary': 'סיכום יום',
-  '/agents-daily': 'נתונים יומיים',
+  '/agents-daily': 'דוח יומי',
   '/info': 'מידע שימושי',
   '/speech': 'ספיץ',
   '/objections': 'ספריית התנגדויות',
@@ -74,7 +74,7 @@ export default function Layout() {
 
           {/* Signature brand hairline across the very top */}
           <div
-            className="pointer-events-none fixed inset-x-0 top-0 z-[60] h-[3px] bg-gradient-to-l from-amber-600 via-yellow-300 to-amber-500"
+            className="pointer-events-none fixed inset-x-0 top-0 z-[60] h-[3px] bg-gradient-to-l from-amber-600 via-yellow-300 to-amber-500 print:hidden"
             aria-hidden="true"
           />
 
@@ -89,11 +89,13 @@ export default function Layout() {
           />
 
           {/* Content — shifted clear of the sidebar on desktop. */}
-          <div className="sm:ms-64">
+          {/* Printing (the daily report's PDF) drops the app's frame: no sidebar
+              gap, no headers, just the page. */}
+          <div className="sm:ms-64 print:ms-0">
             {/* Desktop top bar — the persistent quick-search rectangle that
                 lives on every page. One box, everything: meetings, leads,
                 deals, and the app's own pages. */}
-            <header className="sticky top-0 z-30 hidden items-center justify-center border-b border-white/60 bg-white/70 px-6 py-2.5 backdrop-blur-xl sm:flex">
+            <header className="sticky top-0 z-30 hidden items-center justify-center border-b border-white/60 bg-white/70 px-6 py-2.5 backdrop-blur-xl sm:flex print:!hidden">
               <GlobalSearch />
               {/* The date is decoration, so it floats at the far end — keeping
                   the search box itself dead-centre over the content. */}
@@ -112,7 +114,7 @@ export default function Layout() {
                 bar — so this header has to reserve that height itself or the
                 clock and battery land on top of the menu button. The inset is 0
                 in an ordinary browser tab, so the same rule serves both. */}
-            <header className="sticky top-0 z-30 flex items-center gap-2 border-b border-white/60 bg-white/70 px-4 pb-2.5 pt-[calc(0.625rem+env(safe-area-inset-top))] backdrop-blur-xl sm:hidden">
+            <header className="sticky top-0 z-30 flex items-center gap-2 border-b border-white/60 bg-white/70 px-4 pb-2.5 pt-[calc(0.625rem+env(safe-area-inset-top))] backdrop-blur-xl sm:hidden print:hidden">
               <button
                 onClick={() => setDrawerOpen(true)}
                 className="btn-ghost shrink-0 px-2"
@@ -132,7 +134,7 @@ export default function Layout() {
             </header>
 
             {/* Mobile: the same quick search, a row of its own under the header. */}
-            <div className="px-4 pt-3 sm:hidden">
+            <div className="px-4 pt-3 sm:hidden print:hidden">
               <GlobalSearch />
             </div>
 

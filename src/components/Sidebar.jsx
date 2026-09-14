@@ -304,7 +304,7 @@ export default function Sidebar({ open, onClose, dark, onTheme }) {
       )}
 
       <aside
-        className={`dark-panel fixed inset-y-0 start-0 z-50 flex w-64 flex-col border-e border-white/10 bg-gradient-to-b from-slate-900 via-slate-950 to-black shadow-2xl transition-transform duration-300 ${
+        className={`dark-panel fixed inset-y-0 start-0 z-50 flex w-64 flex-col border-e border-white/10 bg-gradient-to-b from-slate-900 via-slate-950 to-black shadow-2xl transition-transform duration-300 print:hidden ${
           open ? 'translate-x-0' : 'translate-x-full'
         } sm:translate-x-0`}
       >
@@ -407,7 +407,7 @@ export default function Sidebar({ open, onClose, dark, onTheme }) {
             <SideNavLink
               to="/agents-daily"
               icon={BarChart3}
-              label="נתונים יומיים"
+              label="דוח יומי"
               onNavigate={close}
             />
           )}

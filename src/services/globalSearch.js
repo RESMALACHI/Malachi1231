@@ -26,7 +26,7 @@ export const PAGES = [
   { label: 'עוזר AI', path: '/assistant' },
   { label: 'ניהול', path: '/manage' },
   { label: 'פגישות אבודות', path: '/claim-yard' },
-  { label: 'נתונים יומיים', path: '/agents-daily' },
+  { label: 'דוח יומי', path: '/agents-daily' },
 ]
 
 /** Phone queries arrive as "052-123..." / "972..." — search by bare digits. */

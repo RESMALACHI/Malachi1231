@@ -5,7 +5,7 @@ export const CONTROLLABLE_PAGES = [
   { key: 'speech', label: 'ספיץ (תסריט שיחה)' },
   { key: 'objections', label: 'ספריית התנגדויות' },
   { key: 'training', label: 'זירת אימון' },
-  { key: 'agents-daily', label: 'נתונים יומיים (מנהל)' },
+  { key: 'agents-daily', label: 'דוח יומי (מנהל)' },
   { key: 'info', label: 'מידע שימושי' },
   { key: 'clients', label: 'לקוחות' },
   { key: 'whatsapp', label: 'ווצאפ' },

@@ -41,14 +41,28 @@ export function openWhatsApp(phone, text = '') {
   if (!number) return false
 
   const encoded = encodeURIComponent(text || '')
-  const webUrl = `https://wa.me/${number}${encoded ? `?text=${encoded}` : ''}`
+  openPreferringApp(
+    `whatsapp://send?phone=${number}${encoded ? `&text=${encoded}` : ''}`,
+    `https://wa.me/${number}${encoded ? `?text=${encoded}` : ''}`
+  )
+  return true
+}
 
+/**
+ * Hand a ready message to WhatsApp WITHOUT a recipient — WhatsApp asks which
+ * chat or group. For reports a manager forwards wherever they like.
+ */
+export function shareWhatsApp(text) {
+  const encoded = encodeURIComponent(text || '')
+  openPreferringApp(`whatsapp://send?text=${encoded}`, `https://wa.me/?text=${encoded}`)
+}
+
+/** The app link first, the web link if nothing took it. See the note above. */
+function openPreferringApp(appUrl, webUrl) {
   if (isMobile()) {
     window.open(webUrl, '_blank', 'noopener')
-    return true
+    return
   }
-
-  const appUrl = `whatsapp://send?phone=${number}${encoded ? `&text=${encoded}` : ''}`
 
   let settled = false
   const onHide = () => {
@@ -78,5 +92,4 @@ export function openWhatsApp(phone, text = '') {
   // Assigning to location keeps this page intact: an unhandled custom protocol
   // is ignored rather than navigated to.
   window.location.href = appUrl
-  return true
 }
