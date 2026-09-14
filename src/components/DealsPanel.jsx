@@ -36,6 +36,8 @@ const shekel = new Intl.NumberFormat('he-IL', {
   maximumFractionDigits: 0,
 })
 
+const sumAmounts = (rows) => rows.reduce((s, d) => s + Number(d.amount || 0), 0)
+
 /** Strip the calendar boilerplate so the dropdown reads like a client list. */
 function meetingLabel(m) {
   const title = (m.title || '(ללא כותרת)').replace(/\s+/g, ' ').trim()
@@ -188,21 +190,29 @@ export default function DealsPanel({ agentName, isManager, meetings, year, month
         tone: 'text-green-700',
         title: 'מזכות',
         count: of('earning').length,
+        sum: sumAmounts(of('earning')),
       })
       push(of('notEarning'), 'notEarning', {
         icon: CircleDollarSign,
         tone: 'text-amber-700',
         title: 'אינן מזכות',
         count: of('notEarning').length,
+        sum: sumAmounts(of('notEarning')),
       })
       push(of('moved'), 'moved', {
         icon: Receipt,
         tone: 'text-slate-500',
         title: 'עברו לחודש אחר',
         count: of('moved').length,
+        sum: sumAmounts(of('moved')),
+        // Shown for the record, but belongs to another month's total.
+        elsewhere: true,
       })
       return out
     }
+    // A column's total is what this month is credited for in it — the rows that
+    // moved to another month are listed, not counted.
+    const creditedIn = (rows) => sumAmounts(rows.filter((r) => r.section !== 'moved'))
 
     // Tagged once here so each row knows its section without a second lookup.
     const tagged = [
@@ -225,23 +235,27 @@ export default function DealsPanel({ agentName, isManager, meetings, year, month
           title: 'פרויקטים',
           hint: 'לפי טבלת האחוזים',
           rows: order(tagged.filter((r) => !isCourse(r))),
+          total: creditedIn(tagged.filter((r) => !isCourse(r))),
         },
         {
           key: 'course',
           title: 'קורסים בודדים',
           hint: '2% בגבייה מלאה',
           rows: order(tagged.filter(isCourse)),
+          total: creditedIn(tagged.filter(isCourse)),
         },
       ],
     }
   }, [deals, paymentsByDeal, viewMonth, attendedMeetings])
 
-  // The headline total counts what this month is credited for — the struck rows
-  // belong to another month and must not be added in twice.
-  const total = useMemo(
-    () => groups.earning.reduce((sum, d) => sum + Number(d.amount || 0), 0),
-    [groups]
-  )
+  // Two headline totals, both over what this month is credited for — the struck
+  // rows belong to another month and must not be added in twice:
+  //   total   every deal credited here, earning or not — the month's sales
+  //   earning only the deals that count toward the bonus
+  // The tile once showed only the second under the name "סך העסקאות", beside a
+  // count that included both — two numbers about different sets of deals.
+  const total = useMemo(() => sumAmounts(credited), [credited])
+  const earningTotal = useMemo(() => sumAmounts(groups.earning), [groups])
 
   // The month's meetings, newest first — the dropdown to attach a deal to.
   const linkable = useMemo(
@@ -414,15 +428,32 @@ export default function DealsPanel({ agentName, isManager, meetings, year, month
       )}
 
       {/* Month totals */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <div className="card flex items-center gap-4 p-5">
-          <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-green-100 text-green-700">
+          <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-slate-900 text-amber-300">
             <Wallet className="h-6 w-6" aria-hidden="true" />
           </span>
-          <div>
+          <div className="min-w-0">
             <p className="text-xs font-semibold text-slate-500">סך העסקאות החודש</p>
             <p className="text-2xl font-extrabold tabular-nums text-slate-900">
               {shekel.format(total)}
+            </p>
+            <p className="truncate text-[11px] font-semibold text-slate-400">
+              פרויקטים {shekel.format(columns[0].total)} · קורסים {shekel.format(columns[1].total)}
+            </p>
+          </div>
+        </div>
+        <div className="card flex items-center gap-4 p-5">
+          <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-green-100 text-green-700">
+            <BadgeCheck className="h-6 w-6" aria-hidden="true" />
+          </span>
+          <div className="min-w-0">
+            <p className="text-xs font-semibold text-slate-500">מתוכן מזכות בבונוס</p>
+            <p className="text-2xl font-extrabold tabular-nums text-slate-900">
+              {shekel.format(earningTotal)}
+            </p>
+            <p className="truncate text-[11px] font-semibold text-slate-400">
+              {groups.earning.length} מתוך {credited.length} עסקאות
             </p>
           </div>
         </div>
@@ -741,9 +772,12 @@ export default function DealsPanel({ agentName, isManager, meetings, year, month
         <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-2">
         {columns.map((col) => (
         <div key={col.key} className="card divide-y divide-slate-100 overflow-hidden">
-          <div className="flex items-baseline justify-between gap-2 bg-slate-900 px-4 py-3">
+          <div className="flex items-baseline gap-2 bg-slate-900 px-4 py-3">
             <span className="text-sm font-black text-white">{col.title}</span>
             <span className="text-[11px] font-semibold text-slate-400">{col.hint}</span>
+            <span className="ms-auto text-sm font-black tabular-nums text-amber-300" title={`סך ה${col.title} החודש`}>
+              {shekel.format(col.total)}
+            </span>
           </div>
           {col.rows.length === 0 && (
             <p className="px-4 py-8 text-center text-sm text-slate-400">אין {col.title} בחודש זה</p>
@@ -763,6 +797,14 @@ export default function DealsPanel({ agentName, isManager, meetings, year, month
                 <span className={`text-xs font-black ${header.tone}`}>{header.title}</span>
                 <span className="rounded-full bg-white px-2 py-0.5 text-[11px] font-bold tabular-nums text-slate-500">
                   {header.count}
+                </span>
+                <span
+                  className={`ms-auto text-xs font-black tabular-nums ${
+                    header.elsewhere ? 'text-slate-400 line-through' : header.tone
+                  }`}
+                  title={header.elsewhere ? 'נספר בחודש שבו חויב' : undefined}
+                >
+                  {shekel.format(header.sum)}
                 </span>
               </div>
             )}
