@@ -14,7 +14,11 @@ import {
   AlertTriangle,
   MessageCircle,
   Copy,
-  Printer,
+  ImageDown,
+  Loader2,
+  Share2,
+  Download,
+  X,
   StickyNote,
   TrendingUp,
   TrendingDown,
@@ -22,6 +26,7 @@ import {
 import { useAuth } from '../context/AuthContext'
 import { isManagerAgent, REAL_AGENTS } from '../lib/agents'
 import { buildDailyReport, reportText } from '../lib/dailyReport'
+import { renderReportImage } from '../lib/reportImage'
 import { shareWhatsApp } from '../lib/whatsappLink'
 import { localDateKey } from '../services/daySummaryService'
 import { loadDailyReport } from '../services/dailyReportService'
@@ -130,6 +135,57 @@ export function DailyReport() {
       </span>
     ) : null
 
+  // ── The report as a picture ──────────────────────────────────────────────
+  const [imaging, setImaging] = useState(false)
+  const [image, setImage] = useState(null) // { png, url, file }
+  const fileName = `דוח-יומי-${dateKey}.jpg`
+
+  const makeImage = async () => {
+    if (!report) return
+    setImaging(true)
+    try {
+      const { jpeg, png } = await renderReportImage(report, { dateLabel: longDate(dateKey) })
+      setImage({ png, url: URL.createObjectURL(jpeg), file: new File([jpeg], fileName, { type: 'image/jpeg' }) })
+    } catch {
+      setToast({ type: 'error', text: 'יצירת התמונה נכשלה' })
+    } finally {
+      setImaging(false)
+    }
+  }
+
+  const closeImage = () => {
+    if (image) URL.revokeObjectURL(image.url)
+    setImage(null)
+  }
+
+  // A phone can hand the picture straight to WhatsApp; a desktop mostly cannot.
+  const canShareFile = !!image && typeof navigator.canShare === 'function' && navigator.canShare({ files: [image.file] })
+
+  const shareImage = async () => {
+    try {
+      await navigator.share({ files: [image.file], title: `דוח יומי ${shortDate(dateKey)}` })
+    } catch (e) {
+      if (e?.name !== 'AbortError') setToast({ type: 'error', text: 'השיתוף נכשל — נסו הורדה' })
+    }
+  }
+
+  const downloadImage = () => {
+    const a = document.createElement('a')
+    a.href = image.url
+    a.download = fileName
+    a.click()
+  }
+
+  // Copied as a picture, it pastes straight into WhatsApp Web with Ctrl+V.
+  const copyImage = async () => {
+    try {
+      await navigator.clipboard.write([new ClipboardItem({ 'image/png': image.png })])
+      setToast({ type: 'success', text: 'התמונה הועתקה — מדביקים בווצאפ עם Ctrl+V' })
+    } catch {
+      setToast({ type: 'error', text: 'הדפדפן לא מאפשר להעתיק תמונה — נסו הורדה' })
+    }
+  }
+
   const copy = async () => {
     try {
       await navigator.clipboard.writeText(text)
@@ -220,13 +276,13 @@ export function DailyReport() {
             <Copy className="h-4 w-4" aria-hidden="true" />
           </button>
           <button
-            onClick={() => window.print()}
-            disabled={!report}
-            className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50 active:scale-95 disabled:opacity-50"
-            aria-label="הדפסה או שמירה כ-PDF"
-            title="הדפסה / שמירה כ-PDF"
+            onClick={makeImage}
+            disabled={!report || imaging}
+            className="inline-flex h-10 items-center gap-2 rounded-xl bg-slate-900 px-3.5 text-sm font-semibold text-amber-300 shadow-sm transition hover:bg-black active:scale-95 disabled:opacity-50"
+            title="תמונה מעוצבת של הדוח — לשיתוף בווצאפ"
           >
-            <Printer className="h-4 w-4" aria-hidden="true" />
+            {imaging ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <ImageDown className="h-4 w-4" aria-hidden="true" />}
+            תמונה של הדוח
           </button>
         </div>
       </div>
@@ -499,6 +555,57 @@ export function DailyReport() {
         פגישות שנקבעו — לפי מועד יצירתן ביומן · התקיימו — לפי מועד הפגישה · עסקאות — לפי תאריך העסקה · נגבה — לפי תאריך
         החיוב · שיחות, פולואפים, שעות והערות — מהסיכום שהסוכן שולח.
       </p>
+
+      {image && (
+        <div
+          className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-sm animate-fade-in"
+          onClick={closeImage}
+          role="dialog"
+          aria-modal="true"
+          aria-label="תמונה של הדוח"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="flex max-h-full w-full max-w-md flex-col overflow-hidden rounded-3xl bg-white shadow-2xl animate-scale-in"
+          >
+            <div className="flex items-center gap-2 border-b border-slate-100 px-4 py-3">
+              <ImageDown className="h-4 w-4 text-slate-500" aria-hidden="true" />
+              <span className="flex-1 text-sm font-extrabold text-slate-900">תמונה של הדוח</span>
+              <button onClick={closeImage} className="btn-ghost px-2" aria-label="סגירה">
+                <X className="h-5 w-5" aria-hidden="true" />
+              </button>
+            </div>
+            <div className="min-h-0 flex-1 overflow-y-auto bg-slate-100 p-3">
+              <img src={image.url} alt={`דוח יומי ${shortDate(dateKey)}`} className="mx-auto w-full rounded-2xl shadow-lg" />
+            </div>
+            <div className="grid gap-2 border-t border-slate-100 p-3 sm:grid-cols-3">
+              {canShareFile && (
+                <button
+                  onClick={shareImage}
+                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-green-600 px-3 py-2.5 text-sm font-semibold text-white transition hover:bg-green-700 active:scale-95 sm:col-span-3"
+                >
+                  <Share2 className="h-4 w-4" aria-hidden="true" />
+                  שיתוף (ווצאפ ועוד)
+                </button>
+              )}
+              <button
+                onClick={downloadImage}
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-900 px-3 py-2.5 text-sm font-semibold text-white transition hover:bg-black active:scale-95 sm:col-span-2"
+              >
+                <Download className="h-4 w-4" aria-hidden="true" />
+                הורדת התמונה
+              </button>
+              <button
+                onClick={copyImage}
+                className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 active:scale-95"
+              >
+                <Copy className="h-4 w-4" aria-hidden="true" />
+                העתקה
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <Toast toast={toast} onDismiss={() => setToast(null)} />
     </div>
