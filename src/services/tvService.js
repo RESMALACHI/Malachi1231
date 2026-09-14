@@ -12,10 +12,21 @@
 //            המובילים. An agent with 25 meetings in September reads as 25
 //            whether they booked them this morning or in August.
 //
-// Deals count by created_at (when the deal was logged) — that IS the deal's
-// moment, there is no separate "deal date".
+// Deals, likewise, differ by window:
+//
+//   TODAY  — deals LOGGED today (created_at). That is the moment the room hears
+//            about it, and it drives the deal celebration.
+//   MONTH  — the deals this month is CREDITED for, computed by the very same
+//            code as the deals page (loadMonthBilling + splitForMonth). This
+//            used created_at too, and disagreed with the deals page whenever a
+//            deal was logged in one month and dated or charged in another:
+//            ודיע's September read 6 deals / ₪97,800 here and 7 / ₪109,600 on
+//            the deals page, the missing ₪11,800 deal having been entered on
+//            18/08 and dated 10/09. One function now answers for both screens.
 
 import { supabase } from '../lib/supabaseClient'
+import { loadMonthBilling } from './dealPaymentsService'
+import { monthKeyOf, splitForMonth } from '../lib/dealBilling'
 
 const EMPTY = { scope: 'today', booked: [], deals: [], counts: { meetings: 0, deals: 0, revenue: 0 } }
 export const EMPTY_BOARD = EMPTY
@@ -38,6 +49,29 @@ function windowFor(scope) {
     end.setDate(end.getDate() + 1)
   }
   return { start, end }
+}
+
+// The TV polls every few seconds; the month's credit changes only when a deal or
+// a charge is saved. A minute of reuse spares four queries per poll.
+const MONTH_DEALS_TTL_MS = 60_000
+let monthDealsCache = { key: null, at: 0, deals: [] }
+
+/** The deals this month is credited for — exactly what the deals page counts. */
+async function creditedMonthDeals() {
+  const now = new Date()
+  const year = now.getFullYear()
+  const month = now.getMonth()
+  const key = monthKeyOf(year, month)
+  if (monthDealsCache.key === key && Date.now() - monthDealsCache.at < MONTH_DEALS_TTL_MS) {
+    return monthDealsCache.deals
+  }
+  const { deals, paymentsByDeal } = await loadMonthBilling(null, year, month)
+  // Which month a deal is credited to depends on its charges alone; the
+  // attendance figure only splits earning from not, which the TV does not show.
+  const g = splitForMonth(deals, paymentsByDeal, key, 0)
+  const credited = [...g.earning, ...g.notEarning].filter((d) => d.agent_name)
+  monthDealsCache = { key, at: Date.now(), deals: credited }
+  return credited
 }
 
 async function fetchBoard(scope) {
@@ -66,14 +100,16 @@ async function fetchBoard(scope) {
       .not('agent_name', 'is', null)
       .order(on, { ascending: isMonth })
       .limit(isMonth ? 1000 : 200),
-    supabase
-      .from('deals')
-      .select('id, agent_name, client_name, amount, kind, created_at')
-      .gte('created_at', start.toISOString())
-      .lt('created_at', end.toISOString())
-      .not('agent_name', 'is', null)
-      .order('created_at', { ascending: false })
-      .limit(300),
+    isMonth
+      ? creditedMonthDeals().then((data) => ({ data, error: null }))
+      : supabase
+          .from('deals')
+          .select('id, agent_name, client_name, amount, kind, created_at')
+          .gte('created_at', start.toISOString())
+          .lt('created_at', end.toISOString())
+          .not('agent_name', 'is', null)
+          .order('created_at', { ascending: false })
+          .limit(300),
   ])
 
   if (bookedRes.error) throw bookedRes.error
