@@ -4,6 +4,7 @@ export const CONTROLLABLE_PAGES = [
   { key: 'day-summary', label: 'סיכום יום' },
   { key: 'speech', label: 'ספיץ (תסריט שיחה)' },
   { key: 'objections', label: 'ספריית התנגדויות' },
+  { key: 'training', label: 'זירת אימון' },
   { key: 'agents-daily', label: 'נתונים יומיים (מנהל)' },
   { key: 'info', label: 'מידע שימושי' },
   { key: 'clients', label: 'לקוחות' },

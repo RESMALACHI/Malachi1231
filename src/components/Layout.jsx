@@ -30,6 +30,7 @@ const PAGE_TITLES = {
   '/info': 'מידע שימושי',
   '/speech': 'ספיץ',
   '/objections': 'ספריית התנגדויות',
+  '/training': 'זירת אימון',
   '/reports': 'דוחות',
   '/admin': 'ניהול',
 }

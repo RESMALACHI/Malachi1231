@@ -19,6 +19,7 @@ export const PAGES = [
   { label: 'משפך', path: '/reports?tab=funnel' },
   { label: 'ספיץ', path: '/speech' },
   { label: 'ספריית התנגדויות', path: '/objections' },
+  { label: 'זירת אימון', path: '/training' },
   { label: 'לקוחות', path: '/clients' },
   { label: 'ווצאפ', path: '/whatsapp' },
   { label: 'מידע שימושי', path: '/info' },

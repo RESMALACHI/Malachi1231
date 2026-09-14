@@ -20,6 +20,7 @@ import {
   BookOpen,
   Megaphone,
   BookOpenCheck,
+  Swords,
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { useUnassigned } from '../context/UnassignedContext'
@@ -414,8 +415,12 @@ export default function Sidebar({ open, onClose, dark, onTheme }) {
             <SideNavLink to="/reports" icon={PieChart} label="דוחות" onNavigate={close} />
           )}
 
-          {(!isHidden('assistant') || !isHidden('objections') || !isHidden('info')) && (
-            <NavGroupLabel>עזרים</NavGroupLabel>
+          {(!isHidden('assistant') ||
+            !isHidden('objections') ||
+            !isHidden('training') ||
+            !isHidden('info')) && <NavGroupLabel>עזרים</NavGroupLabel>}
+          {!isHidden('training') && (
+            <SideNavLink to="/training" icon={Swords} label="זירת אימון" onNavigate={close} />
           )}
           {!isHidden('objections') && (
             <SideNavLink

@@ -52,7 +52,8 @@ service-role only). Keys include: `team_answers`, `shared_email`/`shared_passwor
 `gcal_sa_json`, `gcal_cal_zahar`/`gcal_cal_ramatgan`, `gcal_client_*`,
 `wa_webhook_token`, `wa_meeting_group`, `wa_summary_group`, `sync_token`,
 `push_token`, `crm_bridge_token`, `ai_key`/`ai_endpoint`/`ai_model`/`ai_provider`,
-`gemini_api_key`, `vapid_*`. Changing an AI model or key is one `UPDATE`, no deploy.
+`gemini_api_key`, `vapid_*`, `sim_model`/`sim_effort` (the training arena's model,
+default `openai/gpt-oss-120b`). Changing an AI model or key is one `UPDATE`, no deploy.
 
 Frontend env: only `VITE_SUPABASE_URL` + `VITE_SUPABASE_ANON_KEY` (also hard-coded
 in `vercel.json` build.env — the anon key is public by design). Supabase project ref
@@ -165,6 +166,12 @@ and would take over each agent's personal number.
   via the `crm-bridge` edge function.
 - `crm-proxy` edge function is a **stub** (`not_wired`) — the "לקוחות" page's Bambi
   CRM integration was never finished.
+- `/training` (זירת אימון) — practice booking calls against virtual prospects.
+  **Free by design**: the browser does speech-to-text and the voice; the prospect
+  and the grading coach are `training-sim` on the Groq free plan (8K tokens/min,
+  1K requests/day per model — measured Sept 2026). Trust penalties are measured in
+  code (`lib/simMetrics.js`, tested), not judged by the model. Personas live in
+  `lib/simPersonas.js`; calls are stored in `sim_sessions` (migration 0014).
 
 ## Housekeeping backlog
 
