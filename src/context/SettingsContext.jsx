@@ -8,43 +8,50 @@ import {
   useState,
 } from 'react'
 import { useAuth } from './AuthContext'
-import { getHiddenPages, saveHiddenPages } from '../services/settingsService'
+import { getNav, saveNav } from '../services/settingsService'
 import { getRoster, writeRosterCache } from '../services/rosterService'
-import { applyRoster } from '../lib/agents'
+import { applyRoster, isAdminAgent, isManagerAgent } from '../lib/agents'
+import { decide, hiddenFrom, ruleFor } from '../lib/access'
 
 const SettingsContext = createContext(null)
 
 // Refresh interval so control-panel changes reach every user. Settings rarely
 // change — a slow poll is plenty, and it keeps weak machines free of busywork.
 const POLL_MS = 120_000
-// Cache the last-known hidden list so a reload applies it INSTANTLY (no flash of
+// The last-known menu settings, so a reload applies them INSTANTLY (no flash of
 // a page that's supposed to be hidden) before Supabase responds.
 const HIDDEN_CACHE_KEY = 'mt_hidden_pages'
+const ACCESS_CACHE_KEY = 'mt_access'
 
-function readCache() {
+function readCache(key, fallback) {
   try {
-    const arr = JSON.parse(localStorage.getItem(HIDDEN_CACHE_KEY))
-    return Array.isArray(arr) ? arr : []
+    const v = JSON.parse(localStorage.getItem(key))
+    return v && typeof v === 'object' ? v : fallback
   } catch {
-    return []
+    return fallback
   }
 }
-function writeCache(hidden) {
+function writeCache(key, v) {
   try {
-    localStorage.setItem(HIDDEN_CACHE_KEY, JSON.stringify(hidden))
+    localStorage.setItem(key, JSON.stringify(v))
   } catch {
     /* ignore */
   }
 }
 
 /**
- * App-wide settings — currently which nav pages are hidden. Shared via Supabase
- * so the admin's control panel affects everyone.
+ * App-wide settings, shared via Supabase so the admin's ניהול page affects
+ * everyone: which pages each person sees and which actions they may use
+ * (lib/access.js), and the old list of pages hidden for all.
  */
 export function SettingsProvider({ children }) {
-  const { user } = useAuth()
-  // Seed from the cache so hidden pages are already hidden on first paint.
-  const [hiddenPages, setHiddenPagesState] = useState(readCache)
+  const { user, selectedAgent } = useAuth()
+  // Seeded from the cache so hidden pages are already hidden on first paint.
+  const [hiddenPages, setHiddenPages] = useState(() => {
+    const v = readCache(HIDDEN_CACHE_KEY, [])
+    return Array.isArray(v) ? v : []
+  })
+  const [access, setAccess] = useState(() => readCache(ACCESS_CACHE_KEY, {}))
   const [loading, setLoading] = useState(true)
   const loadingRef = useRef(false)
 
@@ -53,11 +60,13 @@ export function SettingsProvider({ children }) {
     loadingRef.current = true
     if (!background) setLoading(true)
     try {
-      const hidden = await getHiddenPages()
-      setHiddenPagesState(hidden)
-      writeCache(hidden) // keep the cache in sync with the server
+      const nav = await getNav()
+      setHiddenPages(nav.hidden)
+      setAccess(nav.access)
+      writeCache(HIDDEN_CACHE_KEY, nav.hidden)
+      writeCache(ACCESS_CACHE_KEY, nav.access)
     } catch {
-      /* ignore — e.g. migration not run yet; default to nothing hidden */
+      /* ignore — the cached (or default) settings stand */
     }
     try {
       // The roster the admin last saved. Applied and cached, but NOT forced
@@ -82,23 +91,30 @@ export function SettingsProvider({ children }) {
     return () => clearInterval(id)
   }, [user, load])
 
-  // Save + optimistically update (and cache immediately).
-  const setHidden = useCallback(async (next) => {
-    setHiddenPagesState(next)
-    writeCache(next)
-    await saveHiddenPages(next)
+  /** Save who-sees-what — optimistically, and cached at once. */
+  const saveAccess = useCallback(async (next) => {
+    const hidden = hiddenFrom(next)
+    setAccess(next)
+    setHiddenPages(hidden)
+    writeCache(ACCESS_CACHE_KEY, next)
+    writeCache(HIDDEN_CACHE_KEY, hidden)
+    await saveNav({ hidden, access: next })
   }, [])
 
-  const value = useMemo(
-    () => ({
+  const value = useMemo(() => {
+    const who = { name: selectedAgent, isAdmin: isAdminAgent(selectedAgent), isManager: isManagerAgent(selectedAgent) }
+    return {
       hiddenPages,
+      access,
       loading,
-      isHidden: (key) => hiddenPages.includes(key),
-      setHidden,
+      /** May the person using this device see this page / use this action? */
+      can: (key) => decide(ruleFor(key, access, hiddenPages), who),
+      /** The rule in force for an item — for the ניהול page. */
+      ruleOf: (key) => ruleFor(key, access, hiddenPages),
+      saveAccess,
       refresh: () => load({ background: true }),
-    }),
-    [hiddenPages, loading, setHidden, load]
-  )
+    }
+  }, [hiddenPages, access, loading, selectedAgent, saveAccess, load])
 
   return <SettingsContext.Provider value={value}>{children}</SettingsContext.Provider>
 }

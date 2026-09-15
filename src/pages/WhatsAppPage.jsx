@@ -46,7 +46,7 @@ import {
 } from '../services/whatsappService'
 import FlowBuilder from '../components/wa/FlowBuilder'
 import LeadWebhookPanel from '../components/wa/LeadWebhookPanel'
-import { isAdminAgent } from '../lib/agents'
+import { useSettings } from '../context/SettingsContext'
 
 const ERR_TEXT = {
   bad_credentials: 'הפרטים שהוזנו שגויים — ה־idInstance או ה־Token לא נכונים.',
@@ -713,7 +713,8 @@ function ReadyArea({ agentName, onDisconnect, demo }) {
   // leads arrive on a company webhook and מלאכי owns it. Gated on the roster's
   // admin role rather than on his name, so it follows him if he is renamed and
   // moves with the job if it ever changes hands.
-  const ads = isAdminAgent(agentName)
+  const { can } = useSettings()
+  const ads = can('whatsapp.ads')
 
   const TABS = [
     { key: 'send', label: 'שליחה עכשיו', icon: Send },

@@ -86,7 +86,7 @@ function Main({ icon: Icon, label, onClick, cls, busy = false }) {
 }
 
 /** היסטוריית טפסים — every form sent, where it stands, and what to do next. */
-export default function HistoryTab({ templates, agent, notify, refreshKey, isAdmin, onGoSend }) {
+export default function HistoryTab({ templates, agent, notify, refreshKey, canCancel, canTransfer, onGoSend }) {
   const [search, setSearch] = useState('')
   const [status, setStatus] = useState('')
   const [templateId, setTemplateId] = useState('')
@@ -228,8 +228,8 @@ export default function HistoryTab({ templates, agent, notify, refreshKey, isAdm
           הקובץ ב-iForms
         </span>
       )}
-      {/* Cancelling and deleting are for system admins only (as are import and export). */}
-      {isAdmin && r.source === 'iforms' && r.status !== 'signed' && (
+      {/* Cancelling and deleting — for whoever ניהול → עמודים והרשאות allows ('forms.cancel'). */}
+      {canCancel && r.source === 'iforms' && r.status !== 'signed' && (
         <Act icon={Trash2} label="מחיקת הרשומה" onClick={() => setConfirm({ kind: 'delete', request: r })} tone="text-rose-500 hover:text-rose-700" />
       )}
       {r.source !== 'iforms' && r.status === 'signed' && (
@@ -263,7 +263,7 @@ export default function HistoryTab({ templates, agent, notify, refreshKey, isAdm
           <Act icon={Link2} label="העתקת הקישור לחתימה" onClick={() => copyLink(r)} />
           <Act icon={ExternalLink} label="פתיחת עמוד החתימה (כמו שהלקוח רואה)" onClick={() => window.open(signLink(r.token), '_blank')} />
           <Act icon={ShieldCheck} label="מעקב — מתי נשלח ומתי נפתח" onClick={() => setAudit(r)} />
-          {isAdmin && (
+          {canCancel && (
             <Act icon={Ban} label="ביטול הטופס — הקישור יפסיק לעבוד" onClick={() => setConfirm({ kind: 'cancel', request: r })} tone="text-rose-500 hover:text-rose-700" />
           )}
         </>
@@ -271,7 +271,7 @@ export default function HistoryTab({ templates, agent, notify, refreshKey, isAdm
       {r.status === 'draft' && (
         <>
           <Main icon={Pencil} label="המשך ושליחה" onClick={() => continueDraft(r)} cls="bg-sky-50 text-sky-800 ring-1 ring-sky-200 hover:bg-sky-100" />
-          {isAdmin && (
+          {canCancel && (
             <Act icon={Trash2} label="מחיקת הטיוטה" onClick={() => setConfirm({ kind: 'delete', request: r })} tone="text-rose-500 hover:text-rose-700" />
           )}
         </>
@@ -279,7 +279,7 @@ export default function HistoryTab({ templates, agent, notify, refreshKey, isAdm
       {r.status === 'cancelled' && r.source !== 'iforms' && (
         <>
           <Act icon={ShieldCheck} label="מעקב" onClick={() => setAudit(r)} />
-          {isAdmin && (
+          {canCancel && (
             <Act icon={Trash2} label="מחיקה" onClick={() => setConfirm({ kind: 'delete', request: r })} tone="text-rose-500 hover:text-rose-700" />
           )}
         </>
@@ -333,9 +333,8 @@ export default function HistoryTab({ templates, agent, notify, refreshKey, isAdm
         >
           הצג הכל
         </button>
-        {/* Moving data in and out — the whole client list at once — is for
-            system admins only. */}
-        {isAdmin && (
+        {/* Moving data in and out — the whole list at once ('forms.transfer'). */}
+        {canTransfer && (
           <>
             <button
               onClick={() => fileRef.current?.click()}

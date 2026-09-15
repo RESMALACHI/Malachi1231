@@ -1,7 +1,11 @@
 import { supabase } from '../lib/supabaseClient'
 
 /** Pages hidden from navigation (array of page keys). Empty on any error. */
-export async function getHiddenPages() {
+/**
+ * The menu settings: `hidden` (the old list of pages switched off for all) and
+ * `access` (who sees each page and may use each action — lib/access.js).
+ */
+export async function getNav() {
   const { data, error } = await supabase
     .from('app_settings')
     .select('value')
@@ -10,7 +14,19 @@ export async function getHiddenPages() {
 
   if (error) throw error
   const hidden = data?.value?.hidden
-  return Array.isArray(hidden) ? hidden : []
+  const access = data?.value?.access
+  return {
+    hidden: Array.isArray(hidden) ? hidden : [],
+    access: access && typeof access === 'object' ? access : {},
+  }
+}
+
+/** Both halves together, so saving one never drops the other. */
+export async function saveNav({ hidden, access }) {
+  const { error } = await supabase
+    .from('app_settings')
+    .upsert({ key: 'nav', value: { hidden, access }, updated_at: new Date().toISOString() }, { onConflict: 'key' })
+  if (error) throw error
 }
 
 /**
@@ -123,14 +139,3 @@ export async function saveOffice(office) {
   if (error) throw error
 }
 
-/** Persist the hidden-pages list (shared across all users). */
-export async function saveHiddenPages(hidden) {
-  const { error } = await supabase
-    .from('app_settings')
-    .upsert(
-      { key: 'nav', value: { hidden }, updated_at: new Date().toISOString() },
-      { onConflict: 'key' }
-    )
-
-  if (error) throw error
-}

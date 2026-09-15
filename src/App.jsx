@@ -4,6 +4,7 @@ import ProtectedRoute from './components/ProtectedRoute'
 import { lazyWithReload } from './lib/lazyWithReload'
 import Layout from './components/Layout'
 import Loader from './components/Loader'
+import PageGate from './components/PageGate'
 import LoginPage from './pages/LoginPage'
 import AgentDashboard from './pages/AgentDashboard'
 
@@ -78,28 +79,30 @@ export default function App() {
               </ProtectedRoute>
             }
           >
+            {/* Pages are wrapped in PageGate: who may open each is set in ניהול →
+                עמודים והרשאות (lib/access.js), typed address or menu alike. */}
             {/* The opening screen is the calendar; the day-planner has its own
                 address. /calendar survives for old links (and the global
                 search's ?meeting= deep link), keeping its query string. */}
             <Route path="/" element={<AgentDashboard />} />
-            <Route path="/today" element={<TodayPage />} />
+            <Route path="/today" element={<PageGate page="today"><TodayPage /></PageGate>} />
             <Route path="/calendar" element={<CalendarRedirect />} />
-            <Route path="/claim-yard" element={<ClaimYardPage />} />
-            <Route path="/tasks" element={<TasksPage />} />
-            <Route path="/whatsapp" element={<WhatsAppPage />} />
-            <Route path="/forms" element={<FormsPage />} />
+            <Route path="/claim-yard" element={<PageGate page="claim-yard"><ClaimYardPage /></PageGate>} />
+            <Route path="/tasks" element={<PageGate page="tasks"><TasksPage /></PageGate>} />
+            <Route path="/whatsapp" element={<PageGate page="whatsapp"><WhatsAppPage /></PageGate>} />
+            <Route path="/forms" element={<PageGate page="clients"><FormsPage /></PageGate>} />
             <Route path="/clients" element={<Navigate to="/forms" replace />} />
-            <Route path="/day-summary" element={<DaySummaryPage />} />
-            <Route path="/agents-daily" element={<AgentsDailyPage />} />
-            <Route path="/info" element={<InfoPage />} />
-            <Route path="/speech" element={<SpeechPage />} />
-            <Route path="/objections" element={<ObjectionsPage />} />
-            <Route path="/training" element={<TrainingPage />} />
-            <Route path="/reports" element={<ReportsPage />} />
+            <Route path="/day-summary" element={<PageGate page="day-summary"><DaySummaryPage /></PageGate>} />
+            <Route path="/agents-daily" element={<PageGate page="agents-daily"><AgentsDailyPage /></PageGate>} />
+            <Route path="/info" element={<PageGate page="info"><InfoPage /></PageGate>} />
+            <Route path="/speech" element={<PageGate page="speech"><SpeechPage /></PageGate>} />
+            <Route path="/objections" element={<PageGate page="objections"><ObjectionsPage /></PageGate>} />
+            <Route path="/training" element={<PageGate page="training"><TrainingPage /></PageGate>} />
+            <Route path="/reports" element={<PageGate page="reports"><ReportsPage /></PageGate>} />
             <Route path="/manage" element={<ManagePage />} />
-            <Route path="/assistant" element={<AssistantPage />} />
-            <Route path="/leads" element={<LeadsPage />} />
-            <Route path="/leads/:id" element={<LeadProfilePage />} />
+            <Route path="/assistant" element={<PageGate page="assistant"><AssistantPage /></PageGate>} />
+            <Route path="/leads" element={<PageGate page="leads"><LeadsPage /></PageGate>} />
+            <Route path="/leads/:id" element={<PageGate page="leads"><LeadProfilePage /></PageGate>} />
           </Route>
 
           {/* Admin-only */}

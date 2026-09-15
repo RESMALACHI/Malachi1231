@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Navigate } from 'react-router-dom'
 import {
   FileBarChart2,
   ChevronRight,
@@ -23,8 +22,7 @@ import {
   TrendingUp,
   TrendingDown,
 } from 'lucide-react'
-import { useAuth } from '../context/AuthContext'
-import { isManagerAgent, REAL_AGENTS } from '../lib/agents'
+import { REAL_AGENTS } from '../lib/agents'
 import { buildDailyReport, reportText } from '../lib/dailyReport'
 import { renderReportImage } from '../lib/reportImage'
 import { shareWhatsApp } from '../lib/whatsappLink'
@@ -77,10 +75,9 @@ function Kpi({ icon: Icon, tone, label, value, sub, chip }) {
 
 const dash = (v) => (v === null || v === undefined ? '—' : v)
 
+// Who may open it is PageGate's call (App.jsx) — managers by default, and
+// whoever else ניהול → עמודים והרשאות adds.
 export default function AgentsDailyPage() {
-  const { selectedAgent } = useAuth()
-  // The role, not the dashboard mode: an agent who also manages belongs here.
-  if (!isManagerAgent(selectedAgent)) return <Navigate to="/" replace />
   return <DailyReport />
 }
 

@@ -267,7 +267,9 @@ function AgentSwitcher() {
 export default function Sidebar({ open, onClose, dark, onTheme }) {
   const { selectedAgent } = useAuth()
   const { count: unassigned } = useUnassigned()
-  const { isHidden } = useSettings()
+  // Who sees each page is set in ניהול → עמודים והרשאות (lib/access.js).
+  const { can } = useSettings()
+  const isHidden = (key) => !can(key)
   // Two different questions. `viewAll` is "has no meetings of their own,
   // so show everyone's" — true for איציק, false for ויטלי, who manages AND
   // sells and must keep his own calendar, tasks and day summary.
@@ -294,7 +296,6 @@ export default function Sidebar({ open, onClose, dark, onTheme }) {
   }, [selectedAgent])
 
   const viewAll = managerViewOnly(selectedAgent)
-  const canSeeAll = isManagerAgent(selectedAgent)
   const canControl = isAdminAgent(selectedAgent)
   const close = () => onClose?.()
 
@@ -399,7 +400,7 @@ export default function Sidebar({ open, onClose, dark, onTheme }) {
           )}
 
           {((!viewAll && !isHidden('day-summary')) ||
-            (canSeeAll && !isHidden('agents-daily')) ||
+            (!isHidden('agents-daily')) ||
             !isHidden('reports')) && <NavGroupLabel>דיווח וניתוח</NavGroupLabel>}
           {!viewAll && !isHidden('day-summary') && (
             <SideNavLink
@@ -409,7 +410,7 @@ export default function Sidebar({ open, onClose, dark, onTheme }) {
               onNavigate={close}
             />
           )}
-          {canSeeAll && !isHidden('agents-daily') && (
+          {!isHidden('agents-daily') && (
             <SideNavLink
               to="/agents-daily"
               icon={BarChart3}

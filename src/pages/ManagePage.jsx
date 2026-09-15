@@ -1,9 +1,25 @@
-import { useState } from 'react'
-import { Navigate } from 'react-router-dom'
-import { Activity, DatabaseBackup, Inbox, Layers, Mail, MapPin, MessageCircle, Settings, Sparkles, Target, Users, Webhook, Zap } from 'lucide-react'
+import { Navigate, useSearchParams } from 'react-router-dom'
+import {
+  Activity,
+  ChevronLeft,
+  ChevronRight,
+  DatabaseBackup,
+  Inbox,
+  Mail,
+  MapPin,
+  MessageCircle,
+  Settings,
+  ShieldCheck,
+  Sparkles,
+  Target,
+  Users,
+  Webhook,
+  Zap,
+} from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { isAdminAgent, pinFor } from '../lib/agents'
 import AgentsPanel from '../components/AgentsPanel'
+import AccessPanel from '../components/AccessPanel'
 import AutomationsPanel from '../components/AutomationsPanel'
 import BrainPanel from '../components/BrainPanel'
 import GoalsPanel from '../components/GoalsPanel'
@@ -13,39 +29,56 @@ import MailPanel from '../components/MailPanel'
 import BackupPanel from '../components/BackupPanel'
 import LeadsInbox from '../components/LeadsInbox'
 import LeadsPanel from '../components/LeadsPanel'
-import PagesPanel from '../components/PagesPanel'
 import PinDialog from '../components/PinDialog'
 import SystemPanel from '../components/SystemPanel'
 
-const SECTIONS = [
-  { key: 'system', label: 'מצב המערכת', icon: Activity, hint: 'האם הכל עובד' },
-  { key: 'users', label: 'משתמשים', icon: Users, hint: 'הוספה, עריכה ומחיקה של סוכנים' },
-  { key: 'sources', label: 'מקורות לידים', icon: Webhook, hint: 'כתובות שדרכן נכנסים לידים' },
-  { key: 'leads', label: 'לידים שנכנסו', icon: Inbox, hint: 'שיוך, סטטוס ויצירת קשר' },
-  { key: 'automations', label: 'אוטומציות', icon: Zap, hint: 'כאשר X קורה — המערכת פועלת לבד' },
-  { key: 'goals', label: 'יעדים', icon: Target, hint: 'כמה פגישות ביום כל סוכן אמור לקבוע' },
-  { key: 'office', label: 'מיקום המשרד', icon: MapPin, hint: 'לפתיחת סיכום יום אוטומטית ביציאה' },
-  { key: 'botwa', label: 'ווצאפ הבוט', icon: MessageCircle, hint: 'המופע שדרכו הבוט שולח הודעות' },
-  { key: 'mail', label: 'מייל', icon: Mail, hint: 'חשבון Resend שדרכו נשלחים טפסים ועותקים חתומים' },
-  { key: 'backup', label: 'גיבויים', icon: DatabaseBackup, hint: 'גיבוי מלא כל לילה, ועותק שבועי למייל' },
-  { key: 'brain', label: 'מוח ה-AI', icon: Sparkles, hint: 'מה העוזר יודע ואיך הוא עונה' },
-  { key: 'pages', label: 'עמודים', icon: Layers, hint: 'מה מופיע בתפריט לכולם' },
+// Each colour is a family of settings, so the home screen reads in four blocks.
+const TONES = {
+  violet: 'bg-violet-100 text-violet-700',
+  amber: 'bg-amber-100 text-amber-700',
+  green: 'bg-emerald-100 text-emerald-700',
+  slate: 'bg-slate-200 text-slate-700',
+}
+
+const SECTIONS = {
+  users: { label: 'משתמשים', icon: Users, tone: 'violet', desc: 'הוספה, עריכה ומחיקה של אנשי הצוות — תפקיד, קוד כניסה ושם.', panel: AgentsPanel, boxed: true },
+  access: { label: 'עמודים והרשאות', icon: ShieldCheck, tone: 'violet', desc: 'מי רואה כל עמוד בתפריט, ומי יכול לבצע פעולות רגישות.', panel: AccessPanel },
+  sources: { label: 'מקורות לידים', icon: Webhook, tone: 'amber', desc: 'הכתובות שדרכן נכנסים לידים — מפרסומות, מהאתר ומטפסים.', panel: LeadsPanel },
+  leads: { label: 'לידים שנכנסו', icon: Inbox, tone: 'amber', desc: 'כל ליד שהגיע: למי הוא שויך, מה הסטטוס, ויצירת קשר.', panel: LeadsInbox },
+  automations: { label: 'אוטומציות', icon: Zap, tone: 'amber', desc: 'כשמשהו קורה, המערכת פועלת לבד — למשל שולחת הודעה.', panel: AutomationsPanel },
+  goals: { label: 'יעדים', icon: Target, tone: 'amber', desc: 'כמה פגישות ביום כל סוכן אמור לקבוע.', panel: GoalsPanel },
+  botwa: { label: 'ווצאפ הבוט', icon: MessageCircle, tone: 'green', desc: 'המספר של המשרד שדרכו הבוט קובע פגישות ושולח הודעות.', panel: BotWhatsAppPanel },
+  mail: { label: 'מייל', icon: Mail, tone: 'green', desc: 'שליחת טפסים, תזכורות ועותקים חתומים ללקוחות במייל.', panel: MailPanel },
+  brain: { label: 'מוח ה-AI', icon: Sparkles, tone: 'green', desc: 'מה העוזר החכם יודע על המכללה, ואיך הוא עונה.', panel: BrainPanel },
+  system: { label: 'מצב המערכת', icon: Activity, tone: 'slate', desc: 'בדיקה שהכל עובד: סנכרון היומנים, הבוט והשרתים.', panel: SystemPanel },
+  backup: { label: 'גיבויים', icon: DatabaseBackup, tone: 'slate', desc: 'גיבוי מלא של כל המידע כל לילה, ועותק שבועי למייל.', panel: BackupPanel },
+  office: { label: 'מיקום המשרד', icon: MapPin, tone: 'slate', desc: 'כדי שסיכום היום ייפתח לבד כשיוצאים מהמשרד.', panel: OfficePanel },
+}
+
+const GROUPS = [
+  { title: 'צוות והרשאות', keys: ['users', 'access'] },
+  { title: 'לידים ומכירות', keys: ['sources', 'leads', 'automations', 'goals'] },
+  { title: 'חיבורים', keys: ['botwa', 'mail', 'brain'] },
+  { title: 'מערכת', keys: ['system', 'backup', 'office'] },
 ]
 
 /**
- * The management page — everything that runs the app, in one grey room.
+ * The management page — everything that runs the app.
  *
- * It replaced a hidden control panel that opened by clicking the logo. That was
- * a secret worth keeping while it toggled two menu items; now that it holds the
- * team roster and the doors leads come in through, a thing you have to know
- * about to find is the wrong shape. It is a page, in the menu, behind the PIN.
+ * It opens on a home screen: every setting as a large card with a sentence
+ * saying what it is for, in four families. A card opens its section across the
+ * whole page, with the same title and sentence on top and a way back. It used
+ * to be one row of twelve small tabs over a grey box — everything visible, and
+ * none of it explained.
  *
- * The PIN is asked once per visit, and the page renders nothing until it is
- * answered — no flash of the roster behind the dialog.
+ * The section is in the address (?s=), so the browser's back button returns to
+ * the home screen and a section can be linked to.
+ *
+ * Only the admin has this page, behind their code; the page renders nothing
+ * until it is answered — no flash of the roster behind the dialog.
  */
 export default function ManagePage() {
   const { selectedAgent, isUnlocked, unlockAgent } = useAuth()
-  const [section, setSection] = useState('system')
 
   // Only the admin has this page at all. Anyone else who reaches the URL — by
   // typing it, or from a stale bookmark after a role change — goes home.
@@ -67,67 +100,100 @@ export default function ManagePage() {
     )
   }
 
-  const active = SECTIONS.find((s) => s.key === section) || SECTIONS[0]
+  return <ManageScreen />
+}
 
+/** The page itself, past the admin check and the code — home screen or a section. */
+export function ManageScreen() {
+  const [params, setParams] = useSearchParams()
+  const key = params.get('s')
+  const section = SECTIONS[key]
+  const open = (k) => {
+    setParams({ s: k })
+    window.scrollTo({ top: 0 })
+  }
+  const home = () => {
+    setParams({})
+    window.scrollTo({ top: 0 })
+  }
+
+  // ── A section ──
+  if (section) {
+    const Panel = section.panel
+    return (
+      <div className="mx-auto flex max-w-5xl flex-col gap-5 pb-24">
+        <button
+          onClick={home}
+          className="inline-flex w-fit items-center gap-1.5 rounded-xl px-3 py-2 text-sm font-bold text-slate-600 transition hover:bg-white hover:text-slate-900"
+        >
+          <ChevronRight className="h-4 w-4" aria-hidden="true" />
+          כל ההגדרות
+        </button>
+
+        <header className="flex items-start gap-4 rounded-3xl bg-white p-5 shadow-sm ring-1 ring-slate-200 sm:p-6">
+          <span className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl ${TONES[section.tone]}`}>
+            <section.icon className="h-7 w-7" aria-hidden="true" />
+          </span>
+          <div className="min-w-0">
+            <h1 className="text-2xl font-extrabold text-slate-900">{section.label}</h1>
+            <p className="mt-1 text-base leading-relaxed text-slate-500">{section.desc}</p>
+          </div>
+        </header>
+
+        <div className="rounded-3xl bg-slate-50 p-3 ring-1 ring-slate-200 sm:p-5">
+          {section.boxed ? (
+            <div className="rounded-2xl border border-slate-200 bg-white">
+              <Panel />
+            </div>
+          ) : (
+            <Panel />
+          )}
+        </div>
+      </div>
+    )
+  }
+
+  // ── The home screen ──
   return (
-    <div className="mx-auto max-w-4xl space-y-4 p-4 pb-24">
-      {/* Header */}
-      <header className="flex items-center gap-3 rounded-3xl bg-gradient-to-br from-slate-700 to-slate-900 p-5 text-white shadow-lg shadow-slate-900/20 dark:ring-1 dark:ring-white/10">
-        <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-white/10 ring-1 ring-white/20">
-          <Settings className="h-6 w-6" aria-hidden="true" />
+    <div className="mx-auto flex max-w-5xl flex-col gap-8 pb-24">
+      <header className="flex items-center gap-4 rounded-3xl bg-gradient-to-br from-slate-700 to-slate-900 p-6 text-white shadow-lg shadow-slate-900/20 dark:ring-1 dark:ring-white/10 sm:p-7">
+        <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-white/10 ring-1 ring-white/20">
+          <Settings className="h-7 w-7" aria-hidden="true" />
         </span>
         <div className="min-w-0">
-          <h1 className="text-xl font-extrabold tracking-tight">ניהול</h1>
-          <p className="text-xs text-slate-300">
-            שינויים כאן חלים על כל מי שמשתמש במערכת
-          </p>
+          <h1 className="text-2xl font-extrabold tracking-tight sm:text-3xl">ניהול</h1>
+          <p className="mt-1 text-sm text-slate-300 sm:text-base">כל ההגדרות של המערכת. שינוי כאן חל על כל מי שמשתמש בה.</p>
         </div>
       </header>
 
-      {/* Sections */}
-      <nav className="flex gap-2 overflow-x-auto pb-1">
-        {SECTIONS.map((s) => {
-          const on = s.key === section
-          return (
-            <button
-              key={s.key}
-              onClick={() => setSection(s.key)}
-              className={`flex shrink-0 items-center gap-2 rounded-xl px-3.5 py-2.5 text-sm font-bold transition ${
-                on
-                  ? 'bg-slate-800 text-white shadow-md shadow-slate-900/20'
-                  : 'bg-white text-slate-500 ring-1 ring-slate-200 hover:text-slate-800'
-              }`}
-            >
-              <s.icon className="h-4 w-4" aria-hidden="true" />
-              {s.label}
-            </button>
-          )
-        })}
-      </nav>
-
-      <section className="rounded-3xl bg-slate-100/70 p-3 ring-1 ring-slate-200 sm:p-4">
-        <div className="mb-3 px-1">
-          <h2 className="font-extrabold text-slate-800">{active.label}</h2>
-          <p className="text-xs text-slate-500">{active.hint}</p>
-        </div>
-
-        {section === 'system' && <SystemPanel />}
-        {section === 'users' && (
-          <div className="rounded-2xl border border-slate-200 bg-white">
-            <AgentsPanel />
+      {GROUPS.map((g) => (
+        <section key={g.title} className="flex flex-col gap-3">
+          <h2 className="px-1 text-sm font-extrabold tracking-wide text-slate-500">{g.title}</h2>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {g.keys.map((k) => {
+              const s = SECTIONS[k]
+              return (
+                <button
+                  key={k}
+                  onClick={() => open(k)}
+                  className="group flex items-start gap-4 rounded-3xl bg-white p-5 text-start shadow-sm ring-1 ring-slate-200 transition hover:-translate-y-0.5 hover:shadow-md hover:ring-slate-300 active:scale-[0.99]"
+                >
+                  <span className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl ${TONES[s.tone]}`}>
+                    <s.icon className="h-6 w-6" aria-hidden="true" />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="flex items-center gap-1 text-lg font-extrabold text-slate-900">
+                      {s.label}
+                      <ChevronLeft className="h-4 w-4 text-slate-300 transition group-hover:-translate-x-0.5 group-hover:text-slate-500" aria-hidden="true" />
+                    </span>
+                    <span className="mt-1 block text-sm leading-relaxed text-slate-500">{s.desc}</span>
+                  </span>
+                </button>
+              )
+            })}
           </div>
-        )}
-        {section === 'sources' && <LeadsPanel />}
-        {section === 'leads' && <LeadsInbox />}
-        {section === 'automations' && <AutomationsPanel />}
-        {section === 'goals' && <GoalsPanel />}
-        {section === 'office' && <OfficePanel />}
-        {section === 'botwa' && <BotWhatsAppPanel />}
-        {section === 'mail' && <MailPanel />}
-        {section === 'backup' && <BackupPanel />}
-        {section === 'brain' && <BrainPanel />}
-        {section === 'pages' && <PagesPanel />}
-      </section>
+        </section>
+      ))}
     </div>
   )
 }

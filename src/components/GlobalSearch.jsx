@@ -10,6 +10,9 @@ import {
   X,
 } from 'lucide-react'
 import { searchEverything } from '../services/globalSearch'
+import { useSettings } from '../context/SettingsContext'
+import { useAuth } from '../context/AuthContext'
+import { isAdminAgent } from '../lib/agents'
 
 const pad = (n) => String(n).padStart(2, '0')
 const dmy = (iso) => {
@@ -42,6 +45,12 @@ export default function GlobalSearch() {
   const inputRef = useRef(null)
   const timer = useRef(null)
   const seq = useRef(0)
+  // Only pages this person may open are offered (ניהול → עמודים והרשאות);
+  // ניהול itself is the admin's.
+  const { can } = useSettings()
+  const { selectedAgent } = useAuth()
+  const canSeeRef = useRef(null)
+  canSeeRef.current = (page) => (page === 'manage' ? isAdminAgent(selectedAgent) : can(page))
 
   const run = useCallback((text) => {
     clearTimeout(timer.current)
@@ -54,7 +63,7 @@ export default function GlobalSearch() {
     setBusy(true)
     timer.current = setTimeout(async () => {
       const mine = ++seq.current
-      const out = await searchEverything(query).catch(() => null)
+      const out = await searchEverything(query, { canSee: canSeeRef.current }).catch(() => null)
       // A slower earlier query must not overwrite a newer one's results.
       if (mine === seq.current) {
         setResults(out)

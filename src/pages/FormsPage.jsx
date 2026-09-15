@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { FileSignature, History, Send, Users, Settings2, MailCheck, FileCheck2, HelpCircle, X } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
-import { isAdminAgent } from '../lib/agents'
+import { useSettings } from '../context/SettingsContext'
 import { listTemplates } from '../services/formsService'
 import HistoryTab from '../components/forms/HistoryTab'
 import SendTab from '../components/forms/SendTab'
@@ -35,9 +35,11 @@ const GUIDE_KEY = 'forms.guide.hidden'
 
 export default function FormsPage() {
   const { selectedAgent } = useAuth()
-  const isAdmin = isAdminAgent(selectedAgent)
+  // Who may do what here is set in ניהול → עמודים והרשאות (lib/access.js).
+  const { can } = useSettings()
+  const canTemplates = can('forms.templates')
   const [params, setParams] = useSearchParams()
-  const tab = TABS.some((t) => t.key === params.get('tab') && (!t.admins || isAdmin)) ? params.get('tab') : 'history'
+  const tab = TABS.some((t) => t.key === params.get('tab') && (!t.admins || canTemplates)) ? params.get('tab') : 'history'
   const [templates, setTemplates] = useState([])
   const [toast, setToast] = useState(null)
   const [contact, setContact] = useState(null)
@@ -114,7 +116,7 @@ export default function FormsPage() {
                     {s.title}
                   </p>
                   <p className="mt-0.5 text-xs leading-relaxed text-slate-600">{s.text}</p>
-                  {s.tab && (s.tab !== 'templates' || isAdmin) && s.tab !== tab && (
+                  {s.tab && (s.tab !== 'templates' || canTemplates) && s.tab !== tab && (
                     <button onClick={() => go(s.tab)} className="mt-1 text-xs font-bold text-sky-700 hover:underline">
                       {TABS.find((t) => t.key === s.tab).label} ←
                     </button>
@@ -131,7 +133,7 @@ export default function FormsPage() {
 
       {/* The iForms bar, in the app's own colours. */}
       <nav className="flex overflow-x-auto rounded-2xl bg-sky-800 p-1 shadow-sm" aria-label="טפסים">
-        {TABS.filter((t) => !t.admins || isAdmin).map((t) => {
+        {TABS.filter((t) => !t.admins || canTemplates).map((t) => {
           const Icon = t.icon
           const on = tab === t.key
           return (
@@ -156,7 +158,8 @@ export default function FormsPage() {
           agent={selectedAgent}
           notify={notify}
           refreshKey={refreshKey}
-          isAdmin={isAdmin}
+          canCancel={can('forms.cancel')}
+          canTransfer={can('forms.transfer')}
           onGoSend={() => go('send')}
         />
       )}
@@ -174,14 +177,15 @@ export default function FormsPage() {
         <ContactsTab
           agent={selectedAgent}
           notify={notify}
-          isAdmin={isAdmin}
+          canEdit={can('forms.contacts')}
+          canTransfer={can('forms.transfer')}
           onSendTo={(c) => {
             setContact(c)
             go('send')
           }}
         />
       )}
-      {tab === 'templates' && isAdmin && <TemplatesTab templates={templates} agent={selectedAgent} notify={notify} reload={reload} />}
+      {tab === 'templates' && canTemplates && <TemplatesTab templates={templates} agent={selectedAgent} notify={notify} reload={reload} />}
 
       <Toast toast={toast} onDismiss={() => setToast(null)} />
     </div>

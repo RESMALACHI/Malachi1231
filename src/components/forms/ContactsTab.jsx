@@ -15,7 +15,7 @@ import { INPUT, Pager, useDebounced } from './ui'
 import ConfirmDialog from '../ConfirmDialog'
 
 /** אנשי קשר — the people forms go to. Imports iForms' Excel export in one go. */
-export default function ContactsTab({ agent, notify, onSendTo, isAdmin }) {
+export default function ContactsTab({ agent, notify, onSendTo, canEdit, canTransfer }) {
   const [search, setSearch] = useState('')
   const [createdBy, setCreatedBy] = useState('')
   const [creators, setCreators] = useState([])
@@ -132,8 +132,8 @@ export default function ContactsTab({ agent, notify, onSendTo, isAdmin }) {
             <UserPlus className="h-4 w-4" />
             הוספת איש קשר
           </button>
-          {/* The whole contact list in or out at once — system admins only. */}
-          {isAdmin && (
+          {/* The whole contact list in or out at once ('forms.transfer'). */}
+          {canTransfer && (
             <>
               <button
                 onClick={() => fileRef.current?.click()}
@@ -200,8 +200,8 @@ export default function ContactsTab({ agent, notify, onSendTo, isAdmin }) {
                     <button onClick={() => onSendTo(c)} title="שליחת טופס" className="rounded-lg p-1.5 text-sky-700 hover:bg-sky-50">
                       <Send className="h-4 w-4" />
                     </button>
-                    {/* Editing and deleting a contact — system admins only. */}
-                    {isAdmin && (
+                    {/* Editing and deleting a contact ('forms.contacts'). */}
+                    {canEdit && (
                       <>
                         <button onClick={() => setForm({ id: c.id, name: c.name, phone: c.phone || '', email: c.email || '' })} title="עריכה" className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100">
                           <Pencil className="h-4 w-4" />
@@ -220,7 +220,7 @@ export default function ContactsTab({ agent, notify, onSendTo, isAdmin }) {
       </div>
       {!loading && data.rows.length === 0 && (
         <p className="py-10 text-center text-sm font-semibold text-slate-400">
-          {isAdmin ? 'אין אנשי קשר עדיין — אפשר לייבא את הייצוא מ-iForms בכפתור "ייבוא מאקסל"' : 'אין אנשי קשר להצגה'}
+          {canTransfer ? 'אין אנשי קשר עדיין — אפשר לייבא את הייצוא מ-iForms בכפתור "ייבוא מאקסל"' : 'אין אנשי קשר להצגה'}
         </p>
       )}
       <Pager page={page} pageSize={pageSize} count={data.count} onPage={setPage} onPageSize={setPageSize} />

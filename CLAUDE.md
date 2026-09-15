@@ -44,6 +44,14 @@ enforced **only in the UI**, from the roster.
   `BUILTIN_ROSTER` in `src/lib/agents.js`. Roles stack.
 - `src/lib/agents.js` uses live `let` bindings swapped by `applyRoster()`; an admin
   edit reloads the page. Don't "fix" this into `const`.
+- **Who sees which page / may use which action** is set in ניהול → עמודים והרשאות
+  (`lib/access.js`, tested): per item "everyone / managers / admins / these people"
+  (+ "hidden" for pages), stored in `app_settings.nav.access` beside the old
+  `hidden` list, read through `useSettings().can(key)`. Pages are wrapped in
+  `PageGate` in App.jsx; defaults reproduce the old hard-coded rules. A system admin
+  passes everything but "hidden", and ניהול itself is always admin-only. Add a new
+  gated page or action to `PAGE_ITEMS` / `ACTION_ITEMS` rather than checking a role
+  inline.
 
 ## Config & secrets — the `app_auth` table
 
