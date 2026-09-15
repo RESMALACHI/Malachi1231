@@ -139,6 +139,25 @@ Deno.serve(async (req) => {
     const unrecorded = list.filter((d: any) => !isRecorded(d)).length
     const monthLabel = `${HE_MONTHS[month]} ${year}`
 
+    // Money the agent added to this month's deal bonus by hand (migration
+    // 0017) — listed with each note, since accounting is who pays it and the
+    // note is the only reason on record.
+    const { data: adds } = await admin
+      .from('deal_bonus_additions')
+      .select('amount, note')
+      .eq('agent_name', agentName)
+      .eq('month', `${year}-${pad(month + 1)}`)
+      .order('created_at', { ascending: true })
+    const additions = (adds || []).filter((a: any) => Number(a.amount) > 0)
+    const additionsTotal = additions.reduce((s: number, a: any) => s + Number(a.amount), 0)
+    const additionsBlock = additions.length
+      ? `➕ *תוספות לבונוס העסקאות*\n` +
+        additions
+          .map((a: any) => `    ${shekels(Number(a.amount))} — ${String(a.note || '').replace(/\n+/g, ' ').trim()}`)
+          .join('\n') +
+        `\n*סה"כ תוספות: ${shekels(additionsTotal)}*\n${RULE}\n`
+      : ''
+
     // Split by what was sold, so the month reads as two businesses rather than
     // one number. The grand total still follows, unchanged.
     const groups = new Map<
@@ -206,6 +225,7 @@ Deno.serve(async (req) => {
           : `\n_ל-${unrecorded} עסקאות טרם נרשמה גבייה — הן נספרות כ-0 באחוז._\n`
         : '') +
       `${RULE}\n` +
+      additionsBlock +
       `_הופק אוטומטית ממערכת הפגישות של מכללת R.E.S_`
 
     const toNumber = Deno.env.get('ACCOUNTING_WHATSAPP_NUMBER')

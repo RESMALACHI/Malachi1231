@@ -146,7 +146,10 @@ and would take over each agent's personal number.
 
 - **`src/lib/bonus.js` + `src/lib/dealsBonus.js`** — real payroll. Meeting-bonus
   tiers, deal commission brackets, the 10-meeting gate, meeting-OR-deal-bonus. Add
-  tests before changing anything here.
+  tests before changing anything here. Agents can add money to their own month's
+  deal bonus with a required note (`deal_bonus_additions`, migration 0017) — it
+  sits on top of the calculated lines, is under the same 10-meeting gate, and is
+  listed with its note in `send-deals-report` and in the manager's deals view.
 - **RLS / `team-login` / the shared account** — the whole auth model rests on it.
 - **The sync's delete rule** — deleting a real meeting also discards its attendance
   mark. The "only delete when all feeds answered" guard is load-bearing.

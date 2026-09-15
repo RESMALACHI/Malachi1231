@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { Wallet, X, TrendingUp, AlertTriangle, Lock, Handshake, GraduationCap } from 'lucide-react'
+import { Wallet, X, TrendingUp, AlertTriangle, Lock, Handshake, GraduationCap, Plus, Loader2 } from 'lucide-react'
 import {
   calcDealBonus,
   MIN_MEETINGS,
@@ -48,12 +48,83 @@ function Note({ icon: Icon, tone, children }) {
 }
 
 /**
+ * Adding money to the month by hand: a sum and the reason for it. The reason
+ * is required — it goes to accounting beside the sum, in the deals report.
+ */
+function AddAdditionRow({ onSave, onCancel }) {
+  const [amount, setAmount] = useState('')
+  const [note, setNote] = useState('')
+  const [err, setErr] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  const submit = async (e) => {
+    e.preventDefault()
+    const n = Number(String(amount).replace(/[,\s₪]/g, ''))
+    if (!Number.isFinite(n) || n <= 0) return setErr('הסכום צריך להיות מספר חיובי')
+    if (n > 100000) return setErr('סכום גבוה מדי')
+    if (note.trim().length < 2) return setErr('כתבו בהערה על מה התוספת')
+    setErr('')
+    setSaving(true)
+    try {
+      await onSave({ amount: n, note: note.trim() })
+    } catch (e2) {
+      setErr(e2.message || 'השמירה נכשלה')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <form onSubmit={submit} className="flex flex-col gap-2 bg-green-50/60 px-4 py-3">
+      <div className="flex gap-2">
+        <input
+          autoFocus
+          value={amount}
+          onChange={(e) => setAmount(e.target.value)}
+          inputMode="decimal"
+          placeholder="סכום ₪"
+          aria-label="סכום התוספת"
+          className="w-28 shrink-0 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-bold tabular-nums outline-none focus:border-green-500"
+        />
+        <input
+          value={note}
+          onChange={(e) => setNote(e.target.value)}
+          maxLength={500}
+          placeholder="הערה — על מה התוספת?"
+          aria-label="הערה לתוספת"
+          className="min-w-0 flex-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-green-500"
+        />
+      </div>
+      {err && <p className="text-xs font-bold text-red-600">{err}</p>}
+      <p className="text-[10px] leading-snug text-slate-500">
+        נכנס לסה״כ הבונוס (בתנאי {MIN_MEETINGS} הפגישות) ומופיע עם ההערה בדוח לאפרת.
+      </p>
+      <div className="flex gap-2">
+        <button
+          type="submit"
+          disabled={saving}
+          className="inline-flex items-center gap-1.5 rounded-lg bg-green-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-green-700 disabled:opacity-60"
+        >
+          {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
+          הוספה
+        </button>
+        <button type="button" onClick={onCancel} className="rounded-lg px-3 py-1.5 text-xs font-bold text-slate-500 hover:bg-slate-100">
+          ביטול
+        </button>
+      </div>
+    </form>
+  )
+}
+
+/**
  * Everything is sized to fit one phone screen WITHOUT scrolling — that is the
  * design constraint this whole layout answers, so keep additions on a strict
  * budget: every new row here must earn its height.
  */
-function DetailsModal({ b, monthLabel, onClose }) {
+function DetailsModal({ b, monthLabel, onClose, onAdd, onRemove }) {
   useModalLock(true, onClose)
+  const [adding, setAdding] = useState(false)
+  const [removing, setRemoving] = useState(null) // addition id awaiting "כן"
 
   const coursesSales = b.courseLines.reduce((s, c) => s + Number(c.deal.amount || 0), 0)
 
@@ -130,6 +201,15 @@ function DetailsModal({ b, monthLabel, onClose }) {
           <div className="overflow-hidden rounded-2xl border border-slate-200">
             <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50 px-4 py-2">
               <span className="text-[11px] font-bold tracking-wide text-slate-400">החישוב</span>
+              {onAdd && !adding && (
+                <button
+                  onClick={() => setAdding(true)}
+                  className="inline-flex items-center gap-1 rounded-lg px-1.5 py-0.5 text-[11px] font-bold text-green-700 transition hover:bg-green-50"
+                >
+                  <Plus className="h-3.5 w-3.5" aria-hidden="true" />
+                  הוספת סכום לבונוס
+                </button>
+              )}
             </div>
 
             <div className="divide-y divide-slate-100">
@@ -195,6 +275,51 @@ function DetailsModal({ b, monthLabel, onClose }) {
                   {b.collectionUnlocked ? formatIls(b.collectionBonus) : '—'}
                 </span>
               </div>
+
+              {/* Money added by hand — each with the reason it was added. */}
+              {b.additionLines.map((a) => (
+                <div key={a.id} className="flex items-start justify-between gap-2 px-4 py-2.5 text-sm">
+                  <span className="min-w-0 text-slate-600">
+                    <span className="rounded-md bg-emerald-100 px-1.5 py-0.5 text-[10px] font-bold text-emerald-700">
+                      תוספת
+                    </span>
+                    <span className="mt-0.5 block whitespace-pre-line break-words text-xs text-slate-500">{a.note}</span>
+                  </span>
+                  {removing === a.id ? (
+                    <span className="flex shrink-0 items-center gap-1 text-[11px] font-bold">
+                      <span className="text-slate-500">למחוק?</span>
+                      <button
+                        onClick={async () => {
+                          setRemoving(null)
+                          await onRemove(a.id)
+                        }}
+                        className="rounded-md bg-red-600 px-2 py-0.5 text-white hover:bg-red-700"
+                      >
+                        כן
+                      </button>
+                      <button onClick={() => setRemoving(null)} className="rounded-md px-1.5 py-0.5 text-slate-500 hover:bg-slate-100">
+                        לא
+                      </button>
+                    </span>
+                  ) : (
+                    <span className="flex shrink-0 items-center gap-1">
+                      <span className="font-bold tabular-nums text-slate-900">{formatIls(a.amount)}</span>
+                      {onRemove && (
+                        <button
+                          onClick={() => setRemoving(a.id)}
+                          aria-label="מחיקת התוספת"
+                          title="מחיקת התוספת"
+                          className="rounded-md p-0.5 text-slate-300 transition hover:bg-red-50 hover:text-red-600"
+                        >
+                          <X className="h-3.5 w-3.5" aria-hidden="true" />
+                        </button>
+                      )}
+                    </span>
+                  )}
+                </div>
+              ))}
+
+              {adding && <AddAdditionRow onCancel={() => setAdding(false)} onSave={async (v) => (await onAdd(v)) && setAdding(false)} />}
             </div>
 
             {/* Total — the one number the whole dialog exists for */}
@@ -241,10 +366,17 @@ function DetailsModal({ b, monthLabel, onClose }) {
   )
 }
 
-/** Green "what did the deals earn" card, mirroring the gold meeting-bonus one. */
-export default function DealsBonusCard({ deals, attendedMeetings, monthLabel }) {
+/**
+ * Green "what did the deals earn" card, mirroring the gold meeting-bonus one.
+ * `onAdd` / `onRemove` handle the month's additions by hand; onAdd resolves
+ * truthy once saved.
+ */
+export default function DealsBonusCard({ deals, attendedMeetings, monthLabel, additions = [], onAdd, onRemove }) {
   const [open, setOpen] = useState(false)
-  const b = useMemo(() => calcDealBonus(deals, attendedMeetings), [deals, attendedMeetings])
+  const b = useMemo(
+    () => calcDealBonus(deals, attendedMeetings, additions),
+    [deals, attendedMeetings, additions]
+  )
   const warn = b.missingCollection.length > 0 || !b.meetingsOk
 
   return (
@@ -267,6 +399,9 @@ export default function DealsBonusCard({ deals, attendedMeetings, monthLabel }) 
               <span className="text-3xl font-extrabold tabular-nums leading-tight text-white">
                 {formatIls(b.total)}
               </span>
+              {b.additionsTotal > 0 && (
+                <span className="text-[11px] font-semibold text-white/85">כולל תוספות {formatIls(b.additionsTotal)}</span>
+              )}
             </span>
           </span>
           <span className="hidden shrink-0 rounded-xl bg-slate-900/90 px-3 py-2 text-xs font-bold text-white sm:block">
@@ -283,7 +418,9 @@ export default function DealsBonusCard({ deals, attendedMeetings, monthLabel }) 
         )}
       </button>
 
-      {open && <DetailsModal b={b} monthLabel={monthLabel} onClose={() => setOpen(false)} />}
+      {open && (
+        <DetailsModal b={b} monthLabel={monthLabel} onClose={() => setOpen(false)} onAdd={onAdd} onRemove={onRemove} />
+      )}
     </>
   )
 }

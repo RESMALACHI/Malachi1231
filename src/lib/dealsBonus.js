@@ -26,7 +26,12 @@
 //     exceed 100% — a project that failed to qualify is absent from the top as
 //     well as the bottom, and cannot flatter the number it is excluded from.
 //
-//   • Every bonus is conditional on at least 10 meetings in the month.
+//   • Additions: money the agent adds to the month's deal bonus by hand, each
+//     with a note saying why (deal_bonus_additions). Added on top of the lines
+//     above, as they are — no bracket, no percentage.
+//
+//   • Every bonus is conditional on at least 10 meetings in the month — the
+//     additions included.
 //
 //   • A month pays EITHER the deal bonus or the meeting bonus — never both.
 //     calcDealBonus only computes this side; the choice is made in the UI.
@@ -86,8 +91,9 @@ export function collectionState(deal) {
  *
  * @param {Array} deals   rows with { amount, collected, kind, client_name }
  * @param {number} attendedMeetings  counted meetings that month (the 10 gate)
+ * @param {Array} additions  rows with { id, amount, note } — added by hand
  */
-export function calcDealBonus(deals = [], attendedMeetings = 0) {
+export function calcDealBonus(deals = [], attendedMeetings = 0, additions = []) {
   const projects = deals.filter((d) => (d.kind || 'project') === 'project')
   const courses = deals.filter((d) => d.kind === 'course')
 
@@ -171,9 +177,17 @@ export function calcDealBonus(deals = [], attendedMeetings = 0) {
     : null
   const collectionBonus = collectionBracket ? collectionBracket.amount : 0
 
+  // ── Additions, by hand ──
+  // Only positive sums: the database refuses anything else, and a stray row
+  // must not be able to take money off a payslip.
+  const additionLines = (additions || [])
+    .map((a) => ({ id: a.id, amount: num(a.amount), note: a.note || '', createdAt: a.created_at || null }))
+    .filter((a) => a.amount > 0)
+  const additionsTotal = additionLines.reduce((s, a) => s + a.amount, 0)
+
   // ── The 10-meeting gate ──
   const meetingsOk = attendedMeetings >= MIN_MEETINGS
-  const gross = salesBonus + coursesBonus + collectionBonus
+  const gross = salesBonus + coursesBonus + collectionBonus + additionsTotal
   const total = meetingsOk ? gross : 0
 
   // What the next step up is worth — the same carrot the meeting bonus shows.
@@ -196,6 +210,8 @@ export function calcDealBonus(deals = [], attendedMeetings = 0) {
     collectionUnlocked,
     collectionBracket,
     collectionBonus,
+    additionLines,
+    additionsTotal,
     meetingsOk,
     attendedMeetings,
     gross,

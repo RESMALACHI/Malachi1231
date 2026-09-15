@@ -147,6 +147,52 @@ test('under ten meetings the month pays nothing, but still shows what it was wor
   assert.equal(calcDealBonus(deals, MIN_MEETINGS).total, b.gross)
 })
 
+// ── Additions by hand ───────────────────────────────────────────────────────
+
+test('an addition is added to the bonus as it is, on top of the calculated lines', () => {
+  const deals = [project(50000, 9000)] // 2% → 1,000
+  const b = calcDealBonus(deals, OK, [
+    { id: 'a', amount: 500, note: 'סוכם על עסקת כהן' },
+    { id: 'b', amount: '250.5', note: 'תיקון' },
+  ])
+  assert.equal(b.salesBonus, 1000)
+  assert.equal(b.additionsTotal, 750.5)
+  assert.equal(b.total, 1750.5)
+  assert.deepEqual(
+    b.additionLines.map((a) => [a.id, a.amount, a.note]),
+    [
+      ['a', 500, 'סוכם על עסקת כהן'],
+      ['b', 250.5, 'תיקון'],
+    ]
+  )
+})
+
+test('an addition changes no bracket — the table still reads only the deals', () => {
+  const without = calcDealBonus([project(49000, 9000)], OK)
+  const withIt = calcDealBonus([project(49000, 9000)], OK, [{ amount: 5000, note: 'x' }])
+  assert.equal(withIt.bracket, without.bracket)
+  assert.equal(withIt.collectionBase, without.collectionBase)
+  assert.equal(withIt.total, 5000)
+})
+
+test('additions are under the same ten-meeting gate as the rest of the bonus', () => {
+  const b = calcDealBonus([], MIN_MEETINGS - 1, [{ amount: 800, note: 'בונוס מיוחד' }])
+  assert.equal(b.gross, 800)
+  assert.equal(b.total, 0)
+  assert.equal(calcDealBonus([], MIN_MEETINGS, [{ amount: 800, note: 'בונוס מיוחד' }]).total, 800)
+})
+
+test('a zero or negative row cannot take money off the bonus', () => {
+  const b = calcDealBonus([project(50000, 9000)], OK, [
+    { amount: -500, note: 'x' },
+    { amount: 0, note: 'x' },
+    { amount: null, note: 'x' },
+  ])
+  assert.equal(b.additionsTotal, 0)
+  assert.equal(b.additionLines.length, 0)
+  assert.equal(b.total, 1000)
+})
+
 // ── The colour on the row, which must never disagree with the pay ──────────
 
 test('a course is measured against its own price, a project against ₪3,000', () => {

@@ -23,6 +23,7 @@ import DealsBonusCard from './DealsBonusCard'
 import { formatDay, formatTime } from '../lib/dateUtils'
 import { getDeals, saveDeal, deleteDeal, todayISO, dealsReport } from '../services/dealsService'
 import { addPayment, deletePayment, loadMonthBilling } from '../services/dealPaymentsService'
+import { addAddition, deleteAddition, listAdditions } from '../services/bonusAdditionsService'
 import { REJECT_REASON, monthKeyOf, monthName, splitForMonth } from '../lib/dealBilling'
 import { clientName } from '../lib/meetingTitle'
 import { searchMeetings } from '../services/meetingsService'
@@ -101,6 +102,8 @@ export default function DealsPanel({ agentName, isManager, meetings, year, month
   const [confirming, setConfirming] = useState(null)
   const [toast, setToast] = useState(null)
   const [reportBusy, setReportBusy] = useState(false)
+  // Money added to the month's deal bonus by hand, each with its reason.
+  const [additions, setAdditions] = useState([])
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -109,13 +112,13 @@ export default function DealsPanel({ agentName, isManager, meetings, year, month
       // Not just the deals signed this month: also any deal, from any month,
       // that was CHARGED this month — that charge is this month's credit and
       // the month has to be able to show it.
-      const { deals: rows, paymentsByDeal: pays } = await loadMonthBilling(
-        isManager ? null : agentName,
-        year,
-        month
-      )
+      const [{ deals: rows, paymentsByDeal: pays }, adds] = await Promise.all([
+        loadMonthBilling(isManager ? null : agentName, year, month),
+        listAdditions({ agentName: isManager ? null : agentName, month: monthKeyOf(year, month) }),
+      ])
       setDeals(rows)
       setPaymentsByDeal(pays)
+      setAdditions(adds)
     } catch (err) {
       setError(err.message || 'שגיאה בטעינת העסקאות')
     } finally {
@@ -316,6 +319,24 @@ export default function DealsPanel({ agentName, isManager, meetings, year, month
     }
   }
 
+  /** Add money to this month's deal bonus. Throws so the form can show why. */
+  const addToBonus = async ({ amount, note }) => {
+    const row = await addAddition({ agentName, month: viewMonth, amount, note, createdBy: agentName })
+    setAdditions((cur) => [...cur, row])
+    setToast({ type: 'success', text: `נוספו ${shekel.format(amount)} לבונוס` })
+    return true
+  }
+
+  const removeFromBonus = async (id) => {
+    try {
+      await deleteAddition(id)
+      setAdditions((cur) => cur.filter((a) => a.id !== id))
+      setToast({ type: 'success', text: 'התוספת נמחקה' })
+    } catch (err) {
+      setToast({ type: 'error', text: err.message || 'מחיקת התוספת נכשלה' })
+    }
+  }
+
   const openNew = () => setForm({ ...EMPTY, dealDate: todayISO() })
 
   const openEdit = (d) =>
@@ -419,12 +440,44 @@ export default function DealsPanel({ agentName, isManager, meetings, year, month
   return (
     <div className="flex flex-col gap-4">
       {/* Personal pay — agents only, and never inside the exported report. */}
-      {!isManager && !loading && !error && credited.length > 0 && (
+      {!isManager && !loading && !error && (credited.length > 0 || additions.length > 0) && (
         <DealsBonusCard
           deals={credited}
           attendedMeetings={attendedMeetings}
           monthLabel={monthLabel}
+          additions={additions}
+          onAdd={addToBonus}
+          onRemove={removeFromBonus}
         />
+      )}
+
+      {/* The manager's view of the same: what each agent added to their own
+          bonus this month, and why — money on a payslip should be visible to
+          someone other than the person who typed it. */}
+      {isManager && !loading && !error && additions.length > 0 && (
+        <div className="card overflow-hidden">
+          <div className="flex items-center gap-2 border-b border-slate-100 bg-emerald-50 px-4 py-2.5">
+            <Plus className="h-4 w-4 text-emerald-700" aria-hidden="true" />
+            <span className="text-sm font-extrabold text-emerald-800">תוספות לבונוס העסקאות החודש</span>
+            <span className="ms-auto text-sm font-black tabular-nums text-emerald-800">
+              {shekel.format(additions.reduce((s, a) => s + Number(a.amount || 0), 0))}
+            </span>
+          </div>
+          <ul className="divide-y divide-slate-100">
+            {additions.map((a) => (
+              <li key={a.id} className="flex items-start gap-3 px-4 py-2.5 text-sm">
+                <span className="shrink-0 rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600">
+                  {a.agent_name}
+                </span>
+                <span className="min-w-0 flex-1 whitespace-pre-line break-words text-slate-600">{a.note}</span>
+                <span className="shrink-0 font-bold tabular-nums text-slate-900">{shekel.format(Number(a.amount))}</span>
+                <span className="hidden shrink-0 text-xs tabular-nums text-slate-400 sm:inline">
+                  {formatDay(a.created_at)}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
       )}
 
       {/* Month totals */}
