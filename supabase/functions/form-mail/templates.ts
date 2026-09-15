@@ -34,22 +34,33 @@ function button(href: string, label: string) {
 </td></tr></table>`
 }
 
-/** The link to fill and sign — what "שלח טופס" sends. */
-export function linkEmail(o: { name: string; templateName: string; link: string; initiator?: string | null }) {
+/**
+ * The link to fill and sign — what "שלח טופס" sends. `reminder` is the nudge
+ * sent later from the history: same link, "still waiting for your signature".
+ */
+export function linkEmail(o: { name: string; templateName: string; link: string; initiator?: string | null; reminder?: boolean }) {
   const hi = firstName(o.name) ? `שלום ${esc(firstName(o.name))},` : 'שלום,'
   const by = o.initiator ? `נשלח על ידי ${esc(o.initiator)}, מכללת R.E.S.` : 'נשלח ממכללת R.E.S.'
+  const lead = o.reminder
+    ? `רק מזכירים — <b>${esc(o.templateName)}</b> עדיין ממתין לחתימתך.`
+    : `נשלח אליך לחתימה: <b>${esc(o.templateName)}</b>.`
+  const leadText = o.reminder
+    ? `רק מזכירים — ${o.templateName} עדיין ממתין לחתימתך.`
+    : `נשלח אליך לחתימה: ${o.templateName}.`
   return {
-    subject: `טופס לחתימה: ${o.templateName} — מכללת R.E.S`,
+    subject: o.reminder
+      ? `תזכורת: ${o.templateName} ממתין לחתימתך — מכללת R.E.S`
+      : `טופס לחתימה: ${o.templateName} — מכללת R.E.S`,
     html: frame(
       `<p style="margin:0 0 12px;">${hi}</p>
-<p style="margin:0 0 12px;">נשלח אליך לחתימה: <b>${esc(o.templateName)}</b>.</p>
+<p style="margin:0 0 12px;">${lead}</p>
 <p style="margin:0;color:#475569;">המילוי והחתימה נעשים אונליין, מהטלפון או מהמחשב, ולוקחים דקה או שתיים. אין צורך להדפיס או לסרוק. בסיום יישלח אליך עותק חתום במייל.</p>
 ${button(o.link, 'למילוי וחתימה')}
 <p style="margin:0 0 4px;color:#64748b;font-size:13px;">אם הכפתור לא נפתח, אפשר להעתיק את הקישור לדפדפן:</p>
 <p dir="ltr" style="margin:0 0 8px;font-size:12px;color:${SKY};word-break:break-all;text-align:left;">${esc(o.link)}</p>`,
       `${by} אם ההודעה הגיעה אליך בטעות — אפשר להתעלם ממנה.`
     ),
-    text: [hi, '', `נשלח אליך לחתימה: ${o.templateName}.`, 'למילוי וחתימה דיגיטלית:', o.link, '', by].join('\n'),
+    text: [hi, '', leadText, 'למילוי וחתימה דיגיטלית:', o.link, '', by].join('\n'),
   }
 }
 

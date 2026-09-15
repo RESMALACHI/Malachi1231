@@ -4,8 +4,9 @@
 //   save   { apiKey?, from, fromName, replyTo, officeCopy, forgetKey? }
 //                               → the settings, into app_auth (ניהול → מייל)
 //   test   { to }               → a test email
-//   send   { requestId, origin, agent, resend }
+//   send   { requestId, origin, agent, resend, reminder }
 //                               → the link to fill and sign, to the contact
+//                                 (reminder: worded "still waiting for you")
 //   copy   { requestId, agent?, auto? }
 //                               → the signed PDF, to the contact (+ office bcc)
 //
@@ -208,6 +209,7 @@ Deno.serve(async (req) => {
         templateName: r.template_name,
         link: `${origin}/sign/${r.token}`,
         initiator: r.initiator,
+        reminder: !!body.reminder,
       })
       // The first send of a request is idempotent: a double click, or React
       // mounting the dialog twice, is one email. A deliberate resend is not.
@@ -216,7 +218,7 @@ Deno.serve(async (req) => {
         request_id: r.id,
         kind: 'emailed',
         actor: agent,
-        meta: { what: 'link', to, email_id: id, resend: !!body.resend },
+        meta: { what: 'link', to, email_id: id, resend: !!body.resend, reminder: !!body.reminder },
       })
       return json({ ok: true, to })
     }

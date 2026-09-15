@@ -34,11 +34,12 @@ export default function SentDialog({ request, agent, resend = false, onClose }) 
   const link = signLink(request.token)
   const address = [request.contact_email, request.extra_email].filter(Boolean).join(', ')
 
+  // `again`: not the first send; `reminder`: the client already got the link.
   const sendMail = useCallback(
-    async (again) => {
+    async (again, reminder = false) => {
       setMail({ state: 'sending' })
       try {
-        const r = await emailSignLink(request.id, { agent, resend: again })
+        const r = await emailSignLink(request.id, { agent, again, reminder })
         setMail({ state: 'sent', to: (r?.to || []).join(', ') || address })
       } catch (e) {
         setMail({ state: 'error', text: e.message })
@@ -89,17 +90,17 @@ export default function SentDialog({ request, agent, resend = false, onClose }) 
       return (
         <span className="flex flex-col items-start gap-1">
           <span className="font-bold text-rose-600">{mail.text}</span>
-          <button onClick={() => sendMail(true)} className="inline-flex items-center gap-1 text-xs font-bold text-sky-700 hover:underline">
+          <button onClick={() => sendMail(true, resend)} className="inline-flex items-center gap-1 text-xs font-bold text-sky-700 hover:underline">
             <RotateCw className="h-3.5 w-3.5" /> לנסות שוב
           </button>
         </span>
       )
     return (
       <button
-        onClick={() => sendMail(true)}
+        onClick={() => sendMail(true, true)}
         className="inline-flex items-center gap-1.5 rounded-lg bg-sky-700 px-3 py-1.5 text-xs font-bold text-white hover:bg-sky-800"
       >
-        <Mail className="h-3.5 w-3.5" /> שליחה ל-<span dir="ltr">{address}</span>
+        <Mail className="h-3.5 w-3.5" /> {resend ? 'תזכורת' : 'שליחה'} ל-<span dir="ltr">{address}</span>
       </button>
     )
   }

@@ -17,7 +17,13 @@ const CHANNEL = { link: 'קישור', whatsapp: 'ווצאפ', in_person: 'חתי
 
 /** "קישור לחתימה נשלח במייל" / "עותק חתום נשלח במייל" — and to whom. */
 const labelOf = (e) =>
-  e.kind === 'emailed' ? (e.meta?.what === 'copy' ? 'עותק חתום נשלח במייל' : 'קישור לחתימה נשלח במייל') : null
+  e.kind !== 'emailed'
+    ? null
+    : e.meta?.what === 'copy'
+      ? 'עותק חתום נשלח במייל'
+      : e.meta?.reminder
+        ? 'תזכורת לחתימה נשלחה במייל'
+        : 'קישור לחתימה נשלח במייל'
 
 /** A browser's user-agent, in words a manager can read. */
 export function deviceOf(ua) {

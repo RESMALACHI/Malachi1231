@@ -38,9 +38,13 @@ export async function saveMailSettings(settings) {
 
 export const sendTestMail = (to) => mailFn({ action: 'test', to })
 
-/** The link to fill and sign, to the contact's email (+ the extra one). */
-export const emailSignLink = (requestId, { agent, resend = false } = {}) =>
-  mailFn({ action: 'send', requestId, agent, resend, origin: window.location.origin })
+/**
+ * The link to fill and sign, to the contact's email (+ the extra one).
+ *   again     a deliberate second send (not deduplicated like the first)
+ *   reminder  worded as a reminder: "it's still waiting for your signature"
+ */
+export const emailSignLink = (requestId, { agent, again = false, reminder = false } = {}) =>
+  mailFn({ action: 'send', requestId, agent, resend: again, reminder, origin: window.location.origin })
 
 /** The signed PDF again, to the contact — the first one goes by itself on signing. */
 export const emailSignedCopy = (requestId, agent) => mailFn({ action: 'copy', requestId, agent })

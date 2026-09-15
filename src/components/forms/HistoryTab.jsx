@@ -14,6 +14,7 @@ import {
   Upload,
   Mail,
   Send,
+  BellRing,
 } from 'lucide-react'
 import { parseCsv } from '../../lib/contactImport'
 import { rowsToHistory } from '../../lib/historyImport'
@@ -30,12 +31,59 @@ import {
   pageUrls,
   signLink,
 } from '../../services/formsService'
-import { emailSignedCopy } from '../../services/mailService'
+import { emailSignLink, emailSignedCopy } from '../../services/mailService'
 import { INPUT, Pager, dateFmt, useDebounced, useMailReady } from './ui'
 import SentDialog from './SentDialog'
 import AuditDialog from './AuditDialog'
 import FormFiller from './FormFiller'
 import ConfirmDialog from '../ConfirmDialog'
+
+/**
+ * A spinner that turns inside a fixed box. The box clips the turning corners,
+ * so the spin can never nudge the table's layout — a bare spinning icon at the
+ * edge of a scrolling table shook on hover.
+ */
+function Spin({ size = 'h-4 w-4' }) {
+  return (
+    <span className={`inline-flex shrink-0 overflow-hidden ${size}`} aria-hidden="true">
+      <Loader2 className={`${size} animate-spin`} style={{ willChange: 'transform' }} />
+    </span>
+  )
+}
+
+const hasEmail = (r) => !!(r.contact_email || r.extra_email)
+
+// Declared out here, not inside HistoryTab: a component defined in a render is
+// a new component every render, so each refresh (a toast, a reload) rebuilt the
+// button and restarted its spinner mid-turn.
+function Act({ icon: Icon, label, onClick, tone = 'text-slate-500 hover:text-slate-900', busy = false }) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={busy}
+      title={label}
+      aria-label={label}
+      aria-busy={busy || undefined}
+      className={`rounded-lg p-1.5 transition-colors ${busy ? 'cursor-wait' : 'hover:bg-slate-100'} ${tone}`}
+    >
+      {busy ? <Spin /> : <Icon className="h-4 w-4" />}
+    </button>
+  )
+}
+
+/** The one thing a row most likely needs, in words — the rest as icons. */
+function Main({ icon: Icon, label, onClick, cls, busy = false }) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={busy}
+      className={`me-1 inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-lg px-2.5 py-1.5 text-xs font-bold transition-colors disabled:opacity-60 ${cls}`}
+    >
+      {busy ? <Spin size="h-3.5 w-3.5" /> : <Icon className="h-3.5 w-3.5" />}
+      {label}
+    </button>
+  )
+}
 
 /** היסטוריית טפסים — every form sent, where it stands, and what to do next. */
 export default function HistoryTab({ templates, agent, notify, refreshKey, isManager, onGoSend }) {
@@ -100,18 +148,6 @@ export default function HistoryTab({ templates, agent, notify, refreshKey, isMan
     load()
   }, [load, refreshKey])
 
-  const mailCopy = async (r) => {
-    setMailing(r.id)
-    try {
-      const res = await emailSignedCopy(r.id, agent)
-      notify({ type: 'success', text: `העותק החתום נשלח ל-${(res?.to || []).join(', ')}` })
-    } catch (e) {
-      notify({ type: 'error', text: e.message })
-    } finally {
-      setMailing(null)
-    }
-  }
-
   useEffect(() => setPage(0), [dsearch, status, templateId, pageSize])
 
   const openPdf = async (r) => {
@@ -169,25 +205,20 @@ export default function HistoryTab({ templates, agent, notify, refreshKey, isMan
     }
   }
 
-  const Act = ({ icon: Icon, label, onClick, tone = 'text-slate-500 hover:text-slate-900' }) => (
-    <button onClick={onClick} title={label} aria-label={label} className={`rounded-lg p-1.5 transition hover:bg-slate-100 ${tone}`}>
-      <Icon className={`h-4 w-4 ${Icon === Loader2 ? 'animate-spin' : ''}`} />
-    </button>
-  )
-
-  // The one thing a row most likely needs, in words — the rest as icons.
-  const Main = ({ icon: Icon, label, onClick, cls, busy = false }) => (
-    <button
-      onClick={onClick}
-      disabled={busy}
-      className={`me-1 inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-lg px-2.5 py-1.5 text-xs font-bold transition disabled:opacity-60 ${cls}`}
-    >
-      {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Icon className="h-3.5 w-3.5" />}
-      {label}
-    </button>
-  )
-
-  const hasEmail = (r) => !!(r.contact_email || r.extra_email)
+  /** Mail to the client about one form — the signed copy again, or a reminder to sign. */
+  const mailOne = async (r, send, done) => {
+    if (mailing) return
+    setMailing(r.id)
+    try {
+      const res = await send()
+      notify({ type: 'success', text: `${done} ל-${(res?.to || []).join(', ')}` })
+    } catch (e) {
+      notify({ type: 'error', text: e.message })
+    } finally {
+      setMailing(null)
+    }
+  }
+  const remind = (r) => mailOne(r, () => emailSignLink(r.id, { agent, again: true, reminder: true }), 'התזכורת נשלחה')
 
   const actions = (r) => (
     <div className="flex items-center justify-end gap-0.5">
@@ -205,9 +236,10 @@ export default function HistoryTab({ templates, agent, notify, refreshKey, isMan
           <Main icon={FileDown} label="הקובץ החתום" onClick={() => openPdf(r)} cls="bg-green-600 text-white hover:bg-green-700" />
           {mailReady && hasEmail(r) && (
             <Act
-              icon={mailing === r.id ? Loader2 : Mail}
+              icon={Mail}
+              busy={mailing === r.id}
               label="שליחת העותק החתום שוב במייל"
-              onClick={() => mailing || mailCopy(r)}
+              onClick={() => mailOne(r, () => emailSignedCopy(r.id, agent), 'העותק החתום נשלח')}
               tone="text-sky-700 hover:text-sky-900"
             />
           )}
@@ -217,6 +249,16 @@ export default function HistoryTab({ templates, agent, notify, refreshKey, isMan
       {['sent', 'opened'].includes(r.status) && (
         <>
           <Main icon={Send} label="שליחה חוזרת" onClick={() => setResend(r)} cls="bg-sky-700 text-white hover:bg-sky-800" />
+          {/* One click: "just reminding you — it's still waiting for your signature". */}
+          {mailReady && hasEmail(r) && (
+            <Act
+              icon={BellRing}
+              busy={mailing === r.id}
+              label="תזכורת במייל — הטופס עדיין ממתין לחתימה"
+              onClick={() => remind(r)}
+              tone="text-sky-700 hover:text-sky-900"
+            />
+          )}
           <Act icon={Link2} label="העתקת הקישור לחתימה" onClick={() => copyLink(r)} />
           <Act icon={ExternalLink} label="פתיחת עמוד החתימה (כמו שהלקוח רואה)" onClick={() => window.open(signLink(r.token), '_blank')} />
           <Act icon={ShieldCheck} label="מעקב — מתי נשלח ומתי נפתח" onClick={() => setAudit(r)} />
