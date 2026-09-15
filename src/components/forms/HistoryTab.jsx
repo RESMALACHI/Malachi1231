@@ -228,7 +228,8 @@ export default function HistoryTab({ templates, agent, notify, refreshKey, isAdm
           הקובץ ב-iForms
         </span>
       )}
-      {r.source === 'iforms' && r.status !== 'signed' && (
+      {/* Cancelling and deleting are for system admins only (as are import and export). */}
+      {isAdmin && r.source === 'iforms' && r.status !== 'signed' && (
         <Act icon={Trash2} label="מחיקת הרשומה" onClick={() => setConfirm({ kind: 'delete', request: r })} tone="text-rose-500 hover:text-rose-700" />
       )}
       {r.source !== 'iforms' && r.status === 'signed' && (
@@ -262,19 +263,25 @@ export default function HistoryTab({ templates, agent, notify, refreshKey, isAdm
           <Act icon={Link2} label="העתקת הקישור לחתימה" onClick={() => copyLink(r)} />
           <Act icon={ExternalLink} label="פתיחת עמוד החתימה (כמו שהלקוח רואה)" onClick={() => window.open(signLink(r.token), '_blank')} />
           <Act icon={ShieldCheck} label="מעקב — מתי נשלח ומתי נפתח" onClick={() => setAudit(r)} />
-          <Act icon={Ban} label="ביטול הטופס — הקישור יפסיק לעבוד" onClick={() => setConfirm({ kind: 'cancel', request: r })} tone="text-rose-500 hover:text-rose-700" />
+          {isAdmin && (
+            <Act icon={Ban} label="ביטול הטופס — הקישור יפסיק לעבוד" onClick={() => setConfirm({ kind: 'cancel', request: r })} tone="text-rose-500 hover:text-rose-700" />
+          )}
         </>
       )}
       {r.status === 'draft' && (
         <>
           <Main icon={Pencil} label="המשך ושליחה" onClick={() => continueDraft(r)} cls="bg-sky-50 text-sky-800 ring-1 ring-sky-200 hover:bg-sky-100" />
-          <Act icon={Trash2} label="מחיקת הטיוטה" onClick={() => setConfirm({ kind: 'delete', request: r })} tone="text-rose-500 hover:text-rose-700" />
+          {isAdmin && (
+            <Act icon={Trash2} label="מחיקת הטיוטה" onClick={() => setConfirm({ kind: 'delete', request: r })} tone="text-rose-500 hover:text-rose-700" />
+          )}
         </>
       )}
       {r.status === 'cancelled' && r.source !== 'iforms' && (
         <>
           <Act icon={ShieldCheck} label="מעקב" onClick={() => setAudit(r)} />
-          <Act icon={Trash2} label="מחיקה" onClick={() => setConfirm({ kind: 'delete', request: r })} tone="text-rose-500 hover:text-rose-700" />
+          {isAdmin && (
+            <Act icon={Trash2} label="מחיקה" onClick={() => setConfirm({ kind: 'delete', request: r })} tone="text-rose-500 hover:text-rose-700" />
+          )}
         </>
       )}
     </div>

@@ -200,12 +200,17 @@ export default function ContactsTab({ agent, notify, onSendTo, isAdmin }) {
                     <button onClick={() => onSendTo(c)} title="שליחת טופס" className="rounded-lg p-1.5 text-sky-700 hover:bg-sky-50">
                       <Send className="h-4 w-4" />
                     </button>
-                    <button onClick={() => setForm({ id: c.id, name: c.name, phone: c.phone || '', email: c.email || '' })} title="עריכה" className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100">
-                      <Pencil className="h-4 w-4" />
-                    </button>
-                    <button onClick={() => setConfirm(c)} title="מחיקה" className="rounded-lg p-1.5 text-rose-500 hover:bg-rose-50">
-                      <Trash2 className="h-4 w-4" />
-                    </button>
+                    {/* Editing and deleting a contact — system admins only. */}
+                    {isAdmin && (
+                      <>
+                        <button onClick={() => setForm({ id: c.id, name: c.name, phone: c.phone || '', email: c.email || '' })} title="עריכה" className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100">
+                          <Pencil className="h-4 w-4" />
+                        </button>
+                        <button onClick={() => setConfirm(c)} title="מחיקה" className="rounded-lg p-1.5 text-rose-500 hover:bg-rose-50">
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </>
+                    )}
                   </div>
                 </td>
               </tr>

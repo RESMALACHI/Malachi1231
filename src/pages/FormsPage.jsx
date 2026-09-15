@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { FileSignature, History, Send, Users, Settings2, MailCheck, FileCheck2, HelpCircle, X } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
-import { isAdminAgent, isManagerAgent } from '../lib/agents'
+import { isAdminAgent } from '../lib/agents'
 import { listTemplates } from '../services/formsService'
 import HistoryTab from '../components/forms/HistoryTab'
 import SendTab from '../components/forms/SendTab'
@@ -20,13 +20,13 @@ import Toast from '../components/Toast'
 const TABS = [
   { key: 'history', label: 'היסטוריית טפסים', icon: History, hint: 'כל הטפסים שנשלחו — מי חתם, מי עוד ממתין, ומה אפשר לעשות עם כל אחד.' },
   { key: 'send', label: 'שליחת טפסים', icon: Send, hint: 'בוחרים טופס ולקוח, ממלאים את החלק שלכם, ושולחים ללקוח לחתימה.' },
-  { key: 'contacts', label: 'אנשי קשר', icon: Users, hint: 'הלקוחות שאפשר לשלוח אליהם טפסים. הוספה, עריכה וייבוא מאקסל.' },
-  { key: 'templates', label: 'ניהול טפסים', icon: Settings2, managers: true, hint: 'מעלים קובץ PDF של טופס ומסמנים עליו איפה הלקוח ממלא וחותם.' },
+  { key: 'contacts', label: 'אנשי קשר', icon: Users, hint: 'הלקוחות שאפשר לשלוח אליהם טפסים, והוספת לקוח חדש.' },
+  { key: 'templates', label: 'ניהול טפסים', icon: Settings2, admins: true, hint: 'מעלים קובץ PDF של טופס ומסמנים עליו איפה הלקוח ממלא וחותם.' },
 ]
 
 /** The whole path of a form, once — for whoever opens טפסים for the first time. */
 const STEPS = [
-  { icon: Settings2, title: 'מכינים טופס', text: 'מנהל מעלה PDF ומסמן עליו שדות: כחול ללקוח, כתום לנציג.', tab: 'templates' },
+  { icon: Settings2, title: 'מכינים טופס', text: 'מנהל מערכת מעלה PDF ומסמן עליו שדות: כחול ללקוח, כתום לנציג.', tab: 'templates' },
   { icon: Send, title: 'שולחים ללקוח', text: 'בוחרים טופס ולקוח, ממלאים את השדות הכתומים (למשל סכום) ולוחצים "שלח טופס".', tab: 'send' },
   { icon: MailCheck, title: 'הלקוח חותם', text: 'הוא מקבל קישור במייל או בווצאפ, ממלא וחותם מהטלפון. בלי הדפסה וסריקה.' },
   { icon: FileCheck2, title: 'הקובץ החתום אצלכם', text: 'נשמר בהיסטוריה לצמיתות, ועותק נשלח ללקוח במייל.', tab: 'history' },
@@ -36,9 +36,8 @@ const GUIDE_KEY = 'forms.guide.hidden'
 export default function FormsPage() {
   const { selectedAgent } = useAuth()
   const isAdmin = isAdminAgent(selectedAgent)
-  const isManager = isManagerAgent(selectedAgent) || isAdmin
   const [params, setParams] = useSearchParams()
-  const tab = TABS.some((t) => t.key === params.get('tab') && (!t.managers || isManager)) ? params.get('tab') : 'history'
+  const tab = TABS.some((t) => t.key === params.get('tab') && (!t.admins || isAdmin)) ? params.get('tab') : 'history'
   const [templates, setTemplates] = useState([])
   const [toast, setToast] = useState(null)
   const [contact, setContact] = useState(null)
@@ -115,7 +114,7 @@ export default function FormsPage() {
                     {s.title}
                   </p>
                   <p className="mt-0.5 text-xs leading-relaxed text-slate-600">{s.text}</p>
-                  {s.tab && (s.tab !== 'templates' || isManager) && s.tab !== tab && (
+                  {s.tab && (s.tab !== 'templates' || isAdmin) && s.tab !== tab && (
                     <button onClick={() => go(s.tab)} className="mt-1 text-xs font-bold text-sky-700 hover:underline">
                       {TABS.find((t) => t.key === s.tab).label} ←
                     </button>
@@ -132,7 +131,7 @@ export default function FormsPage() {
 
       {/* The iForms bar, in the app's own colours. */}
       <nav className="flex overflow-x-auto rounded-2xl bg-sky-800 p-1 shadow-sm" aria-label="טפסים">
-        {TABS.filter((t) => !t.managers || isManager).map((t) => {
+        {TABS.filter((t) => !t.admins || isAdmin).map((t) => {
           const Icon = t.icon
           const on = tab === t.key
           return (
@@ -182,7 +181,7 @@ export default function FormsPage() {
           }}
         />
       )}
-      {tab === 'templates' && isManager && <TemplatesTab templates={templates} agent={selectedAgent} notify={notify} reload={reload} />}
+      {tab === 'templates' && isAdmin && <TemplatesTab templates={templates} agent={selectedAgent} notify={notify} reload={reload} />}
 
       <Toast toast={toast} onDismiss={() => setToast(null)} />
     </div>
