@@ -11,7 +11,7 @@ import { useAuth } from './AuthContext'
 import { getNav, saveNav } from '../services/settingsService'
 import { getRoster, writeRosterCache } from '../services/rosterService'
 import { applyRoster, isAdminAgent, isManagerAgent } from '../lib/agents'
-import { decide, hiddenFrom, ruleFor } from '../lib/access'
+import { decide, ruleFor, withLegacyHidden } from '../lib/access'
 
 const SettingsContext = createContext(null)
 
@@ -91,15 +91,21 @@ export function SettingsProvider({ children }) {
     return () => clearInterval(id)
   }, [user, load])
 
-  /** Save who-sees-what — optimistically, and cached at once. */
-  const saveAccess = useCallback(async (next) => {
-    const hidden = hiddenFrom(next)
-    setAccess(next)
-    setHiddenPages(hidden)
-    writeCache(ACCESS_CACHE_KEY, next)
-    writeCache(HIDDEN_CACHE_KEY, hidden)
-    await saveNav({ hidden, access: next })
-  }, [])
+  /**
+   * Save who-sees-what — optimistically, and cached at once. Pages the old
+   * "hidden" list switched off stay hidden (withLegacyHidden).
+   */
+  const saveAccess = useCallback(
+    async (next) => {
+      const { access: merged, hidden } = withLegacyHidden(next, hiddenPages)
+      setAccess(merged)
+      setHiddenPages(hidden)
+      writeCache(ACCESS_CACHE_KEY, merged)
+      writeCache(HIDDEN_CACHE_KEY, hidden)
+      await saveNav({ hidden, access: merged })
+    },
+    [hiddenPages]
+  )
 
   const value = useMemo(() => {
     const who = { name: selectedAgent, isAdmin: isAdminAgent(selectedAgent), isManager: isManagerAgent(selectedAgent) }

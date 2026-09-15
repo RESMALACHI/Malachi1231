@@ -80,3 +80,19 @@ export function decide(rule, { name, isAdmin = false, isManager = false }) {
 /** The pages switched off for everyone — still written, for anything reading the old list. */
 export const hiddenFrom = (access = {}) =>
   PAGE_ITEMS.filter((p) => access?.[p.key]?.level === 'nobody').map((p) => p.key)
+
+/**
+ * What to store when the admin changes one rule: the new settings, with every
+ * page the OLD list hid carried over as "hidden" unless it now has a rule of
+ * its own — otherwise the first save would quietly bring back pages that were
+ * switched off before permissions existed. Keys in the old list that are not
+ * pages here are kept as they are.
+ */
+export function withLegacyHidden(access = {}, oldHidden = []) {
+  const merged = { ...access }
+  for (const key of oldHidden) {
+    if (PAGE_ITEMS.some((p) => p.key === key) && !merged[key]) merged[key] = { level: 'nobody', people: [] }
+  }
+  const others = oldHidden.filter((k) => !PAGE_ITEMS.some((p) => p.key === k))
+  return { access: merged, hidden: [...hiddenFrom(merged), ...others] }
+}

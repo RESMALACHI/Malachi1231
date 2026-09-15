@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { decide, hiddenFrom, ruleFor } from './access.js'
+import { decide, hiddenFrom, ruleFor, withLegacyHidden } from './access.js'
 
 const agent = { name: 'ודיע' }
 const manager = { name: 'איציק', isManager: true }
@@ -48,6 +48,22 @@ test('an action cannot be "hidden from everyone", and an unknown item is for adm
   assert.equal(can('something-new', manager), false)
   assert.equal(can('something-new', admin), true)
   assert.equal(ruleFor('tasks', { tasks: { level: 'bogus' } }).level, 'everyone')
+})
+
+test('saving one rule keeps the pages the old list hid — hidden, not back on', () => {
+  // The live list before permissions existed.
+  const oldHidden = ['leads', 'speech', 'tv', 'today']
+  const { access, hidden } = withLegacyHidden({ whatsapp: { level: 'people', people: ['ודיע'] } }, oldHidden)
+  assert.equal(access.leads.level, 'nobody')
+  assert.equal(access.today.level, 'nobody')
+  assert.equal(access.whatsapp.level, 'people')
+  assert.deepEqual(hidden.sort(), ['leads', 'speech', 'today', 'tv'].sort())
+  assert.equal(can('leads', agent, access, hidden), false)
+  // A page given its own rule is no longer forced hidden.
+  const again = withLegacyHidden({ ...access, speech: { level: 'everyone' } }, hidden)
+  assert.equal(again.access.speech.level, 'everyone')
+  assert.ok(!again.hidden.includes('speech'))
+  assert.ok(again.hidden.includes('tv'))
 })
 
 test('the old hidden list is written from the pages set to hidden', () => {
