@@ -258,7 +258,7 @@ export default function SignPage() {
       </div>
 
       {/* ── The bar that always knows the next step ── */}
-      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white/95 px-4 pb-[calc(0.8rem+env(safe-area-inset-bottom))] pt-3 shadow-[0_-8px_30px_-12px_rgba(15,23,42,0.25)] backdrop-blur">
+      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white/95 px-4 pb-[calc(0.8rem+env(safe-area-inset-bottom))] pt-3 shadow-[0_-8px_30px_-12px_rgba(15,23,42,0.25)]">
         <div className="mx-auto max-w-3xl">
           {message && <p className="mb-2 text-center text-sm font-bold text-rose-600">{message}</p>}
           {missingTheirs.length > 0 ? (
@@ -315,7 +315,7 @@ export default function SignPage() {
 function Shell({ title, progress = null, children }) {
   return (
     <div dir="rtl" className="min-h-screen bg-slate-100">
-      <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/95 backdrop-blur">
+      <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/95">
         <div className="h-[3px] bg-gradient-to-l from-amber-600 via-yellow-300 to-amber-500" />
         <div className="mx-auto flex max-w-3xl items-center gap-3 px-4 py-2.5 sm:px-6">
           <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-slate-900 text-[11px] font-black text-amber-300">

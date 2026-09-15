@@ -16,7 +16,34 @@ import { lazy } from 'react'
 
 const RELOAD_FLAG = 'mt_chunk_reloaded'
 
+// Every page's import, kept so they can be fetched ahead of the first click.
+const factories = []
+
+/**
+ * Fetch every page in the background, one at a time while the browser is idle.
+ *
+ * A code-split page downloads on its first click — and with navigations run
+ * as transitions, the old page just sits there until it arrives: the click
+ * feels like it did nothing. Fetched ahead, a menu click is instant. One module
+ * per idle slot, so a weak machine never feels the prefetch itself. A failure
+ * is ignored; that page simply loads on its click, as before.
+ */
+export function prefetchPages() {
+  const queue = [...factories]
+  const idle = (fn) =>
+    typeof window.requestIdleCallback === 'function' ? window.requestIdleCallback(fn, { timeout: 3000 }) : setTimeout(fn, 200)
+  const next = () => {
+    const factory = queue.shift()
+    if (!factory) return
+    factory()
+      .catch(() => {})
+      .finally(() => idle(next))
+  }
+  idle(next)
+}
+
 export function lazyWithReload(factory) {
+  factories.push(factory)
   return lazy(async () => {
     try {
       const mod = await factory()

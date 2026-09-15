@@ -539,7 +539,7 @@
   --cal-line-column: #dadce0;
   --cal-line-hour: #e8eaed;
   --cal-chrome: #70757a;
-  --cal-surface: rgba(255, 255, 255, 0.62);
+  --cal-surface: rgba(255, 255, 255, 0.84);
 }
 .dark {
   --cal-line-column: #314663;
@@ -626,3 +626,20 @@
 .dark .hover\:bg-green-50\/60:hover { background-color: rgba(13, 43, 29, 0.6); }
 .dark .hover\:bg-slate-200:hover { background-color: #243656; }
 .dark .hover\:bg-amber-50\/60:hover { background-color: rgba(63, 48, 16, 0.45); }
+
+/* ── Smoothness ─────────────────────────────────────────────────────────────
+   The sticky top bars: nearly opaque, no frosted blur. A backdrop blur has to
+   re-blur whatever scrolls beneath it on every frame — the one cost a weak
+   office machine paid on every scroll of every page. */
+.app-bar { background-color: rgba(255, 255, 255, 0.94); }
+.dark .app-bar { background-color: rgba(13, 23, 41, 0.96); }
+
+/* Full-screen overlays (dialogs, sheets, the phone menu) dim the page without
+   blurring it. Blurring the whole screen while a dialog animates in is what
+   made opening and closing feel stuck; the dim alone reads the same. The wall
+   board (.tv-screen) keeps its blur — it runs on one big screen and nothing
+   else. */
+.fixed.inset-0[class*='backdrop-blur']:not(.tv-screen *) {
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}

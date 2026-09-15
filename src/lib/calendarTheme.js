@@ -102,13 +102,13 @@ export const CHIP_BASE =
   'overflow-hidden text-right leading-snug transition duration-150 hover:brightness-[1.06]'
 
 /**
- * The frosted pane every calendar sits on.
+ * The pane every calendar sits on.
  *
- * This is the ONE blurred layer in the whole grid. It samples the page's
- * gradient and drifting glows, which is what gives the chips above it something
- * to be translucent against — without it, "glass" over flat white is just
- * washed-out colour. `saturate` keeps the gold from going grey through the blur.
+ * It used to be a 40px backdrop blur the size of the calendar — re-blurred on
+ * every frame of every scroll, on the page the office opens most. Now a nearly
+ * opaque pane that lets the page's soft glows show faintly through, with the
+ * same border and shadow: the look stays, the cost is gone.
  */
 export const SURFACE =
-  'rounded-2xl border border-white/70 shadow-xl shadow-slate-900/10 backdrop-blur-2xl'
-export const SURFACE_BG = 'var(--cal-surface, rgba(255, 255, 255, 0.62))'
+  'rounded-2xl border border-white/70 shadow-xl shadow-slate-900/10'
+export const SURFACE_BG = 'var(--cal-surface, rgba(255, 255, 255, 0.84))'

@@ -8,6 +8,7 @@ import { LogoMark } from './Logo'
 import SkyToggle from './SkyToggle'
 import { applyTheme, isDark } from '../lib/theme'
 import { useAutoDaySummary } from '../lib/useAutoDaySummary'
+import { prefetchPages } from '../lib/lazyWithReload'
 import { UnassignedProvider } from '../context/UnassignedContext'
 import { SettingsProvider } from '../context/SettingsContext'
 import { useAuth } from '../context/AuthContext'
@@ -63,6 +64,14 @@ export default function Layout() {
   // the office at the end of the day. Lives here so it watches every page.
   useAutoDaySummary()
 
+  // Once the app is up, fetch the other pages quietly in the background, so
+  // no menu click waits on a download (lib/lazyWithReload.js).
+  useEffect(() => {
+    if (!agentConfirmed) return undefined
+    const t = setTimeout(prefetchPages, 1500)
+    return () => clearTimeout(t)
+  }, [agentConfirmed])
+
   // After login, show the fancy agent picker before entering the app.
   if (!agentConfirmed) return <AgentSelectPage />
 
@@ -95,7 +104,7 @@ export default function Layout() {
             {/* Desktop top bar — the persistent quick-search rectangle that
                 lives on every page. One box, everything: meetings, leads,
                 deals, and the app's own pages. */}
-            <header className="sticky top-0 z-30 hidden items-center justify-center border-b border-white/60 bg-white/70 px-6 py-2.5 backdrop-blur-xl sm:flex print:!hidden">
+            <header className="sticky top-0 z-30 hidden items-center justify-center border-b border-slate-200/70 app-bar px-6 py-2.5 sm:flex print:!hidden">
               <GlobalSearch />
               {/* The date is decoration, so it floats at the far end — keeping
                   the search box itself dead-centre over the content. */}
@@ -114,7 +123,7 @@ export default function Layout() {
                 bar — so this header has to reserve that height itself or the
                 clock and battery land on top of the menu button. The inset is 0
                 in an ordinary browser tab, so the same rule serves both. */}
-            <header className="sticky top-0 z-30 flex items-center gap-2 border-b border-white/60 bg-white/70 px-4 pb-2.5 pt-[calc(0.625rem+env(safe-area-inset-top))] backdrop-blur-xl sm:hidden print:hidden">
+            <header className="sticky top-0 z-30 flex items-center gap-2 border-b border-slate-200/70 app-bar px-4 pb-2.5 pt-[calc(0.625rem+env(safe-area-inset-top))] sm:hidden print:hidden">
               <button
                 onClick={() => setDrawerOpen(true)}
                 className="btn-ghost shrink-0 px-2"
@@ -141,8 +150,10 @@ export default function Layout() {
             {/* The bottom tab bar is gone, so the page no longer needs to
                 reserve room for it — just ordinary breathing space. */}
             <main className="mx-auto max-w-7xl px-4 pb-10 pt-6 sm:px-6 sm:pb-6">
-              {/* Re-key on route change so each page animates in. */}
-              <div key={location.pathname} className="animate-fade-up">
+              {/* Re-key on route change so each page arrives with a quick fade —
+                  opacity only, a fifth of a second, so a page is never kept waiting
+                  for its own entrance. */}
+              <div key={location.pathname} className="animate-page-in">
                 <Outlet />
               </div>
             </main>

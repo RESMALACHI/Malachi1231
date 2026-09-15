@@ -17,6 +17,8 @@ export default {
           700: '#4338ca',
         },
       },
+      // Motion tokens — short on purpose: dialogs and pages that take half a
+      // second to arrive felt stuck on the office's machines.
       // ── Motion tokens ──────────────────────────────────────────────────────
       keyframes: {
         'fade-in': {
@@ -78,12 +80,14 @@ export default {
         },
       },
       animation: {
-        'fade-in': 'fade-in .4s ease-out both',
-        'fade-up': 'fade-up .5s cubic-bezier(.22,1,.36,1) both',
-        'scale-in': 'scale-in .28s cubic-bezier(.22,1,.36,1) both',
-        'slide-up': 'slide-up .38s cubic-bezier(.22,1,.36,1) both',
+        'fade-in': 'fade-in .18s ease-out both',
+        'fade-up': 'fade-up .3s cubic-bezier(.22,1,.36,1) both',
+        // A page arriving: opacity only and quick, so it never waits on itself.
+        'page-in': 'fade-in .18s ease-out both',
+        'scale-in': 'scale-in .2s cubic-bezier(.22,1,.36,1) both',
+        'slide-up': 'slide-up .26s cubic-bezier(.22,1,.36,1) both',
         pop: 'pop .32s cubic-bezier(.34,1.56,.64,1) both',
-        'pop-in': 'pop-in .5s cubic-bezier(.34,1.56,.64,1) both',
+        'pop-in': 'pop-in .34s cubic-bezier(.34,1.56,.64,1) both',
         'pulse-ring': 'pulse-ring 1.6s cubic-bezier(.24,0,.38,1) infinite',
         'gradient-pan': 'gradient-pan 9s ease infinite',
         wiggle: 'wiggle .6s ease-in-out',
