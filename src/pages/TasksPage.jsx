@@ -13,9 +13,12 @@ import {
   closeTask,
 } from '../services/meetingsService'
 import { managerViewOnly, REAL_AGENTS } from '../lib/agents'
+import { getDealMeetings } from '../services/dealsService'
+import { closedByDeal } from '../lib/dealTasks'
 
 // Tasks are shown from the start of the season (June 2026) onward, not just the
-// current month.
+// current month. A meeting whose client closed a deal is not a task at all —
+// see lib/dealTasks.js.
 const TASKS_SINCE = new Date(2026, 5, 1).toISOString()
 
 const AGENT_DOT = {
@@ -137,12 +140,16 @@ export default function TasksPage() {
     setLoading(true)
     setError(null)
     try {
-      const data = isManager
-        ? (await getAllMeetingsSince(TASKS_SINCE)).filter((m) =>
-            REAL_AGENTS.includes(m.agent_name)
-          )
-        : await getMeetingsSince(selectedAgent, TASKS_SINCE)
-      setMeetings(data)
+      const [data, dealMeetings] = await Promise.all([
+        isManager
+          ? getAllMeetingsSince(TASKS_SINCE).then((rows) => rows.filter((m) => REAL_AGENTS.includes(m.agent_name)))
+          : getMeetingsSince(selectedAgent, TASKS_SINCE),
+        // A failed lookup shows every task rather than none.
+        getDealMeetings().catch(() => []),
+      ])
+      // A client who closed a deal needs no follow-up and no rescheduling call.
+      const closed = closedByDeal(data, dealMeetings)
+      setMeetings(data.filter((m) => !closed.has(m.id)))
     } catch (err) {
       setError(err.message || 'שגיאה בטעינת המשימות')
     } finally {

@@ -8,6 +8,8 @@
 import { supabase } from '../lib/supabaseClient'
 import { getAllMeetingsInRange, getMeetingsInRange, getMeetingsSince } from './meetingsService'
 import { dueLeadTasks, listLeads } from './leadsService'
+import { getDealMeetings } from './dealsService'
+import { closedByDeal } from '../lib/dealTasks'
 
 // Tasks exist from June onward — same cutoff the tasks page itself uses.
 const TASKS_SINCE = '2026-06-01'
@@ -33,7 +35,7 @@ export async function getTodayBundle(agentName, viewAll = false) {
   const to = new Date(start)
   to.setDate(to.getDate() + AHEAD_DAYS + 1)
 
-  const [meetings, leads, taskSource, summaryRes, leadTasks] = await Promise.all([
+  const [meetings, leads, taskSource, summaryRes, leadTasks, dealMeetings] = await Promise.all([
     viewAll
       ? getAllMeetingsInRange(from.toISOString(), to.toISOString())
       : getMeetingsInRange(agentName, from.toISOString(), to.toISOString()),
@@ -47,7 +49,10 @@ export async function getTodayBundle(agentName, viewAll = false) {
           .eq('agent_name', agentName)
           .eq('summary_date', dayKey(now)),
     dueLeadTasks(viewAll ? null : agentName).catch(() => []),
+    viewAll ? Promise.resolve([]) : getDealMeetings().catch(() => []),
   ])
+  // Same rule as the tasks page: a client who closed a deal is not a task.
+  const closed = closedByDeal(taskSource, dealMeetings)
 
   const todayK = dayKey(now)
   const sorted = [...meetings].sort((a, b) => new Date(a.meeting_date) - new Date(b.meeting_date))
@@ -87,7 +92,7 @@ export async function getTodayBundle(agentName, viewAll = false) {
     leadTasksToday: leadTasks.filter((t) => t.due_date === todayK),
     leadTasksOverdue: leadTasks.filter((t) => t.due_date < todayK),
     followupsOpen: taskSource.filter(
-      (m) => (m.status === 'attended' || m.status === 'no_show') && !m.task_done
+      (m) => (m.status === 'attended' || m.status === 'no_show') && !m.task_done && !closed.has(m.id)
     ).length,
     summaryFiled: summaryRes === null ? null : (summaryRes.count || 0) > 0,
   }

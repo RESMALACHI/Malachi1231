@@ -47,6 +47,31 @@ export async function getDeals(agentName, year, month) {
 }
 
 /**
+ * Every meeting a deal was recorded against, with what identifies its client
+ * (title and description, where the phone is) — all agents, all time. The
+ * tasks page drops a follow-up once the client has closed.
+ */
+export async function getDealMeetings() {
+  const { data, error } = await supabase
+    .from('deals')
+    .select('meeting_id, meetings(id, title, description)')
+    .not('meeting_id', 'is', null)
+  if (error) throw error
+  return (data || []).map((d) => d.meetings).filter(Boolean)
+}
+
+/** The deals recorded against one meeting — for its detail view. */
+export async function getDealsForMeeting(meetingId) {
+  const { data, error } = await supabase
+    .from('deals')
+    .select('id, agent_name, client_name, amount, collected, kind, deal_date')
+    .eq('meeting_id', meetingId)
+    .order('deal_date', { ascending: false })
+  if (error) throw error
+  return data || []
+}
+
+/**
  * Create or update a deal. Returns the saved row.
  *
  * COLLECTION IS NOT A FIELD OF THE DEAL ANY MORE — it is the dated charges in

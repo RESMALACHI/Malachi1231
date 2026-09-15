@@ -11,7 +11,9 @@ import {
   MessageCircle,
   ChevronDown,
   Send,
+  Handshake,
 } from 'lucide-react'
+import { getDealsForMeeting } from '../services/dealsService'
 import { WA_TEMPLATES, meetingTemplateValues } from '../lib/waTemplates'
 import { listMyTemplates, toRuntime } from '../services/waCustomTemplates'
 import { useAuth } from '../context/AuthContext'
@@ -202,6 +204,56 @@ function ClientHistory({ meeting, agentName, allAgents }) {
   )
 }
 
+const shekel = new Intl.NumberFormat('he-IL', { style: 'currency', currency: 'ILS', maximumFractionDigits: 0 })
+
+/**
+ * "A deal was recorded on this meeting" — the amount, what was collected, and
+ * when. Loads on its own and says nothing when there is no deal, like the
+ * history below it.
+ */
+function DealBanner({ meeting }) {
+  const [deals, setDeals] = useState([])
+
+  useEffect(() => {
+    let alive = true
+    setDeals([])
+    getDealsForMeeting(meeting.id)
+      .then((rows) => alive && setDeals(rows))
+      .catch(() => {})
+    return () => {
+      alive = false
+    }
+  }, [meeting.id])
+
+  if (deals.length === 0) return null
+
+  return (
+    <div className="flex flex-col gap-2 rounded-2xl border border-green-200 bg-green-50 p-3.5">
+      <span className="flex items-center gap-2 text-sm font-extrabold text-green-800">
+        <Handshake className="h-5 w-5 shrink-0" aria-hidden="true" />
+        {deals.length === 1 ? 'נסגרה עסקה מהפגישה הזו' : `נסגרו ${deals.length} עסקאות מהפגישה הזו`}
+      </span>
+      {deals.map((d) => (
+        <div key={d.id} className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-green-900">
+          <span className="text-base font-extrabold tabular-nums">{shekel.format(Number(d.amount || 0))}</span>
+          <span className="rounded-full bg-white/80 px-2 py-0.5 font-bold">
+            {d.kind === 'course' ? 'קורס בודד' : 'פרויקט'}
+          </span>
+          <span className="rounded-full bg-white/80 px-2 py-0.5 font-semibold tabular-nums">
+            {d.collected === null || d.collected === undefined
+              ? 'טרם נרשמה גבייה'
+              : `נגבה ${shekel.format(Number(d.collected))}`}
+          </span>
+          {d.deal_date && <span className="tabular-nums text-green-700">{formatDay(`${d.deal_date}T12:00:00`)}</span>}
+          {d.agent_name && d.agent_name !== meeting.agent_name && (
+            <span className="text-green-700">· {d.agent_name}</span>
+          )}
+        </div>
+      ))}
+    </div>
+  )
+}
+
 /**
  * Detailed view of a single meeting: title, date/time, description, location,
  * and large comfortable buttons for attendance (נוכחות) and type (סוג פגישה).
@@ -271,6 +323,9 @@ export default function MeetingDetailModal({
         </div>
 
         <div className="flex flex-col gap-5 overflow-y-auto p-5">
+          {/* A deal recorded on this meeting (עסקאות → "מאיזו פגישה?"). */}
+          <DealBanner meeting={meeting} />
+
           {/* What the office's own history says about this one showing up. */}
           <RiskBadge risk={risk} showReasons />
 
