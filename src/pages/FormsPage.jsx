@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { FileSignature, History, Send, Users, Settings2, MailCheck, FileCheck2, HelpCircle, X } from 'lucide-react'
+import { FileSignature, History, Send, Users, Settings2, MailCheck, FileCheck2, HelpCircle, X, Palette } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { useSettings } from '../context/SettingsContext'
 import { listTemplates } from '../services/formsService'
@@ -8,6 +8,7 @@ import HistoryTab from '../components/forms/HistoryTab'
 import SendTab from '../components/forms/SendTab'
 import ContactsTab from '../components/forms/ContactsTab'
 import TemplatesTab from '../components/forms/TemplatesTab'
+import MessagesTab from '../components/forms/MessagesTab'
 import Toast from '../components/Toast'
 
 /**
@@ -21,7 +22,8 @@ const TABS = [
   { key: 'history', label: 'היסטוריית טפסים', icon: History, hint: 'כל הטפסים שנשלחו — מי חתם, מי עוד ממתין, ומה אפשר לעשות עם כל אחד.' },
   { key: 'send', label: 'שליחת טפסים', icon: Send, hint: 'בוחרים טופס ולקוח, ממלאים את החלק שלכם, ושולחים ללקוח לחתימה.' },
   { key: 'contacts', label: 'אנשי קשר', icon: Users, hint: 'הלקוחות שאפשר לשלוח אליהם טפסים, והוספת לקוח חדש.' },
-  { key: 'templates', label: 'ניהול טפסים', icon: Settings2, admins: true, hint: 'מעלים קובץ PDF של טופס ומסמנים עליו איפה הלקוח ממלא וחותם.' },
+  { key: 'messages', label: 'עיצוב הודעות', icon: Palette, perm: 'forms.messages', hint: 'איך נראים המיילים והודעות הווצאפ שהלקוחות מקבלים — הנוסח, הצבע והפרטים האישיים.' },
+  { key: 'templates', label: 'ניהול טפסים', icon: Settings2, perm: 'forms.templates', hint: 'מעלים קובץ PDF של טופס ומסמנים עליו איפה הלקוח ממלא וחותם.' },
 ]
 
 /** The whole path of a form, once — for whoever opens טפסים for the first time. */
@@ -39,7 +41,7 @@ export default function FormsPage() {
   const { can } = useSettings()
   const canTemplates = can('forms.templates')
   const [params, setParams] = useSearchParams()
-  const tab = TABS.some((t) => t.key === params.get('tab') && (!t.admins || canTemplates)) ? params.get('tab') : 'history'
+  const tab = TABS.some((t) => t.key === params.get('tab') && (!t.perm || can(t.perm))) ? params.get('tab') : 'history'
   const [templates, setTemplates] = useState([])
   const [toast, setToast] = useState(null)
   const [contact, setContact] = useState(null)
@@ -133,7 +135,7 @@ export default function FormsPage() {
 
       {/* The iForms bar, in the app's own colours. */}
       <nav className="flex overflow-x-auto rounded-2xl bg-sky-800 p-1 shadow-sm" aria-label="טפסים">
-        {TABS.filter((t) => !t.admins || canTemplates).map((t) => {
+        {TABS.filter((t) => !t.perm || can(t.perm)).map((t) => {
           const Icon = t.icon
           const on = tab === t.key
           return (
@@ -185,6 +187,7 @@ export default function FormsPage() {
           }}
         />
       )}
+      {tab === 'messages' && can('forms.messages') && <MessagesTab agent={selectedAgent} notify={notify} />}
       {tab === 'templates' && canTemplates && <TemplatesTab templates={templates} agent={selectedAgent} notify={notify} reload={reload} />}
 
       <Toast toast={toast} onDismiss={() => setToast(null)} />

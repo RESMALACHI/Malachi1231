@@ -93,6 +93,38 @@ export async function saveTemplate(id, patch) {
   return data
 }
 
+// ── The words sent to clients (טפסים → עיצוב הודעות) ───────────────────────
+
+let messagesPromise = null
+
+/** app_settings 'form_messages' — asked once per visit; {} when never set. */
+export function getFormMessages({ fresh = false } = {}) {
+  if (fresh || !messagesPromise) {
+    messagesPromise = supabase
+      .from('app_settings')
+      .select('value')
+      .eq('key', 'form_messages')
+      .maybeSingle()
+      .then(({ data, error }) => {
+        if (error) throw error
+        return data?.value && typeof data.value === 'object' ? data.value : {}
+      })
+      .catch((e) => {
+        messagesPromise = null
+        throw e
+      })
+  }
+  return messagesPromise
+}
+
+export async function saveFormMessages(value) {
+  const { error } = await supabase
+    .from('app_settings')
+    .upsert({ key: 'form_messages', value, updated_at: new Date().toISOString() }, { onConflict: 'key' })
+  if (error) throw error
+  messagesPromise = Promise.resolve(value)
+}
+
 // ── Contacts ────────────────────────────────────────────────────────────────
 
 /** Digits only, Israeli local form: 972501234567 / +972-50… → 0501234567. */

@@ -2,7 +2,8 @@ import { useCallback, useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { CheckCircle2, Copy, MessageCircle, Mail, X, Loader2, Check, RotateCw } from 'lucide-react'
 import { openWhatsApp } from '../../lib/whatsappLink'
-import { logEvent, signLink } from '../../services/formsService'
+import { getFormMessages, logEvent, signLink } from '../../services/formsService'
+import { waText } from '../../lib/formMessages'
 import { emailSignLink } from '../../services/mailService'
 import { useMailReady } from './ui'
 
@@ -13,15 +14,17 @@ import { useMailReady } from './ui'
  * address), when mail is connected and the contact has an address — as iForms
  * did. WhatsApp opens the AGENT's own chat with the client, message pre-filled;
  * the agent presses send. And the link itself, to paste anywhere.
+ *
+ * The WhatsApp words are the office's (טפסים → עיצוב הודעות, lib/formMessages):
+ * the first send uses "טופס לחתימה", a resend the reminder.
  */
-export function waMessage(request) {
-  const first = String(request.contact_name || '').split(/\s+/)[0]
-  return [
-    `שלום ${first},`,
-    `מצורף לחתימה: ${request.template_name} — מכללת R.E.S.`,
-    `למילוי וחתימה דיגיטלית:`,
-    signLink(request.token),
-  ].join('\n')
+export function waMessage(request, settings, reminder = false) {
+  return waText(reminder ? 'wa_reminder' : 'wa_link', settings, {
+    name: request.contact_name,
+    templateName: request.template_name,
+    initiator: request.initiator,
+    link: signLink(request.token),
+  })
 }
 
 // A request mailed once from this tab is not mailed again by a remount.
@@ -31,6 +34,10 @@ export default function SentDialog({ request, agent, resend = false, onClose }) 
   const [copied, setCopied] = useState(false)
   const [mail, setMail] = useState({ state: 'idle' }) // idle | sending | sent | error
   const mailReady = useMailReady()
+  const [waSettings, setWaSettings] = useState({})
+  useEffect(() => {
+    getFormMessages().then(setWaSettings).catch(() => {})
+  }, [])
   const link = signLink(request.token)
   const address = [request.contact_email, request.extra_email].filter(Boolean).join(', ')
 
@@ -65,7 +72,7 @@ export default function SentDialog({ request, agent, resend = false, onClose }) 
   }
 
   const whatsapp = () => {
-    if (openWhatsApp(request.contact_phone, waMessage(request)) && resend) {
+    if (openWhatsApp(request.contact_phone, waMessage(request, waSettings, resend)) && resend) {
       logEvent(request.id, 'resent', agent, { channel: 'whatsapp' }).catch(() => {})
     }
   }

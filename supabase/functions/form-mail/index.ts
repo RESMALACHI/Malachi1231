@@ -9,6 +9,11 @@
 //                                 (reminder: worded "still waiting for you")
 //   copy   { requestId, agent?, auto? }
 //                               → the signed PDF, to the contact (+ office bcc)
+//   messages                    → the email texts in force, and the defaults
+//   preview { kind, messages }  → one email rendered from draft texts
+//
+// The words and colour of every email come from app_settings 'form_messages'
+// (טפסים → עיצוב הודעות), over the defaults in templates.ts.
 //
 // The Resend key lives in app_auth (service role only) — the browser can set it
 // but never read it back. Team calls carry the shared session's JWT; `copy` is
@@ -18,7 +23,7 @@
 // IS recorded, in form_events — it is part of the form's evidence.
 import { createClient } from 'jsr:@supabase/supabase-js@2'
 import { encodeBase64 } from 'jsr:@std/encoding@1/base64'
-import { copyEmail, linkEmail, testEmail } from './templates.ts'
+import { DEFAULTS, mergeMessages, renderEmail, signedLabel, testEmail } from './templates.ts'
 
 const cors = {
   'Access-Control-Allow-Origin': '*',
@@ -134,6 +139,25 @@ Deno.serve(async (req) => {
       from: `"${cfg.fromName}" <${cfg.from}>`,
       ...(isEmail(cfg.replyTo) ? { reply_to: cfg.replyTo } : {}),
     })
+    // The office's words and colour for the emails (טפסים → עיצוב הודעות).
+    const { data: msgRow } = await admin.from('app_settings').select('value').eq('key', 'form_messages').maybeSingle()
+    const messages = msgRow?.value || {}
+
+    // ── messages / preview: for the designer — no mail account needed ─────
+    if (action === 'messages') {
+      return json({ messages: mergeMessages(messages), defaults: DEFAULTS })
+    }
+    if (action === 'preview') {
+      const kind = ['link', 'reminder', 'copy'].includes(body.kind) ? body.kind : 'link'
+      const sample = {
+        name: 'דני כהן',
+        templateName: 'הסכם התקשרות',
+        initiator: body.agent ? String(body.agent).slice(0, 80) : 'ודיע',
+        date: signedLabel(new Date().toISOString()),
+      }
+      const mail = renderEmail(kind, sample, body.messages, kind === 'copy' ? '' : `${DEFAULT_ORIGIN}/sign/…`)
+      return json({ subject: mail.subject, html: mail.html })
+    }
 
     // ── status ──────────────────────────────────────────────────────────────
     if (action === 'status') {
@@ -186,7 +210,7 @@ Deno.serve(async (req) => {
     if (action === 'test') {
       const to = String(body.to || '').trim()
       if (!isEmail(to)) return json({ error: 'bad_address', message: 'כתובת לא תקינה' }, 400)
-      const id = await resendSend(cfg.apiKey, { ...sender(), to: [to], ...testEmail() })
+      const id = await resendSend(cfg.apiKey, { ...sender(), to: [to], ...testEmail(messages) })
       return json({ ok: true, id })
     }
 
@@ -204,13 +228,12 @@ Deno.serve(async (req) => {
       const to = recipients([r.contact_email, r.extra_email])
       if (!to.length) return json({ error: 'no_email', message: 'אין מייל לאיש הקשר' }, 400)
       const origin = /^https?:\/\/[a-z0-9.-]+(:\d+)?$/i.test(String(body.origin || '')) ? String(body.origin) : DEFAULT_ORIGIN
-      const mail = linkEmail({
-        name: r.contact_name,
-        templateName: r.template_name,
-        link: `${origin}/sign/${r.token}`,
-        initiator: r.initiator,
-        reminder: !!body.reminder,
-      })
+      const mail = renderEmail(
+        body.reminder ? 'reminder' : 'link',
+        { name: r.contact_name, templateName: r.template_name, initiator: r.initiator },
+        messages,
+        `${origin}/sign/${r.token}`
+      )
       // The first send of a request is idempotent: a double click, or React
       // mounting the dialog twice, is one email. A deliberate resend is not.
       const id = await resendSend(cfg.apiKey, { ...sender(), to, ...mail }, body.resend ? undefined : `link-${r.id}`)
@@ -257,7 +280,11 @@ Deno.serve(async (req) => {
           ...sender(),
           to,
           ...(office ? { bcc: [cfg.officeCopy] } : {}),
-          ...copyEmail({ name: r.contact_name, templateName: r.template_name, signedAt: r.signed_at }),
+          ...renderEmail(
+            'copy',
+            { name: r.contact_name, templateName: r.template_name, initiator: r.initiator, date: signedLabel(r.signed_at) },
+            messages
+          ),
           attachments: [{ filename: name, content: encodeBase64(bytes) }],
         },
         body.auto ? `copy-${r.id}` : undefined

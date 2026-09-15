@@ -47,5 +47,11 @@ export const sendTestMail = (to) => mailFn({ action: 'test', to })
 export const emailSignLink = (requestId, { agent, again = false, reminder = false } = {}) =>
   mailFn({ action: 'send', requestId, agent, resend: again, reminder, origin: signOrigin() })
 
+/** The email texts in force (over the defaults), and the defaults themselves. */
+export const mailMessages = () => mailFn({ action: 'messages' })
+
+/** One email rendered from draft texts — exactly what a client would get. */
+export const previewMail = (kind, messages, agent) => mailFn({ action: 'preview', kind, messages, agent })
+
 /** The signed PDF again, to the contact — the first one goes by itself on signing. */
 export const emailSignedCopy = (requestId, agent) => mailFn({ action: 'copy', requestId, agent })

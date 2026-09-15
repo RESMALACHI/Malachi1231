@@ -214,7 +214,11 @@ service-role only.
   `form-sign` calls `form-mail` `copy` with the service key right after a
   signature, so the client gets the signed PDF (office bcc optional). Every mail
   is a `form_events` row of kind `emailed` (meta.what = link | copy). Resend only
-  sends to anyone once the college's domain is verified there.
+  sends to anyone once the college's domain is verified there. The words and colour
+  of the three emails and two WhatsApp texts are the office's (טפסים → עיצוב הודעות,
+  `app_settings.form_messages`): emails are rendered by `form-mail/templates.ts`
+  (defaults there; `preview` action for the designer), WhatsApp by
+  `lib/formMessages.js`. Placeholders: {שם} {שם מלא} {טופס} {נציג} {תאריך} {קישור}.
 - `/training` (זירת אימון) — practice booking calls against virtual prospects.
   **Free by design**: the browser does speech-to-text and the voice; the prospect
   and the grading coach are `training-sim` on the Groq free plan (8K tokens/min,

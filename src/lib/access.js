@@ -44,6 +44,7 @@ export const PAGE_ITEMS = [
 /** Actions inside pages. Hiding is for pages; an action is someone's or not. */
 export const ACTION_ITEMS = [
   { key: 'forms.templates', page: 'טפסים', label: 'ניהול טפסים — העלאה ועריכה של הטפסים עצמם', def: 'admins' },
+  { key: 'forms.messages', page: 'טפסים', label: 'עיצוב ההודעות שנשלחות ללקוחות (מייל וווצאפ)', def: 'admins' },
   { key: 'forms.cancel', page: 'טפסים', label: 'ביטול ומחיקה של טפסים שנשלחו', def: 'admins' },
   { key: 'forms.contacts', page: 'טפסים', label: 'עריכה ומחיקה של אנשי קשר', def: 'admins' },
   { key: 'forms.transfer', page: 'טפסים', label: 'ייבוא וייצוא לאקסל', def: 'admins' },
