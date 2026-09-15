@@ -404,8 +404,15 @@ export async function fileUrl(path, secs = 3600) {
   return data.signedUrl
 }
 
+/**
+ * Where signing links point: the signing page's own domain (VITE_SIGN_ORIGIN,
+ * set in vercel.json) — never the meetings app's, which a client should not
+ * find their way into. Until that domain is set, this app's own address.
+ */
+export const signOrigin = () => (import.meta.env.VITE_SIGN_ORIGIN || '').replace(/\/+$/, '') || window.location.origin
+
 /** The public link the client opens. */
-export const signLink = (token) => `${window.location.origin}/sign/${token}`
+export const signLink = (token) => `${signOrigin()}/sign/${token}`
 
 // ── The client's side (public, no login) ────────────────────────────────────
 

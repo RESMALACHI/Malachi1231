@@ -173,7 +173,12 @@ and would take over each agent's personal number.
   Bambi CRM integration was never finished; that page is gone (/clients → /forms).
 - `/forms` (טפסים) — the office's own iForms: templates (a PDF + boxes drawn in
   the editor), contacts, sent forms, e-signature. Migration 0015. The client signs
-  at the PUBLIC `/sign/:token` page, which talks only to the `form-sign` edge
+  at the PUBLIC `/sign/:token` page — **its own build** (`sign.html` +
+  `src/signMain.jsx`, a second Vite input; vercel.json rewrites `/sign/*` to it),
+  so a client never loads the meetings app. Links point at `VITE_SIGN_ORIGIN`
+  (the signing domain, `sign.res-nadlan.co.il`; every other path on that host
+  redirects to the college site) and fall back to this app's origin while it is
+  unset. The page talks only to the `form-sign` edge
   function (**verify_jwt false** — the 64-hex token is the permission). The signed
   PDF is the office's template PDF stamped with PNGs (`stamp.ts`): Hebrew is
   rendered to images in the browser (`lib/fieldImage.js`) because pdf-lib draws

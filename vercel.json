@@ -9,5 +9,25 @@
       "VITE_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVobXpkaHRqYWJoYmN5c2xvdmZrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE3NzYwODIsImV4cCI6MjA5NzM1MjA4Mn0.m5v2gsSZW7viHcYdWKNNAlmey8mRiI1np-fCeUAm4nQ"
     }
   },
-  "rewrites": [{ "source": "/((?!assets/).*)", "destination": "/index.html" }]
+  "redirects": [
+    {
+      "source": "/((?!sign/|assets/)[^.]*)",
+      "has": [{ "type": "host", "value": "sign.res-nadlan.co.il" }],
+      "destination": "https://www.res-nadlan.co.il/",
+      "permanent": false
+    }
+  ],
+  "rewrites": [
+    { "source": "/sign/:token*", "destination": "/sign.html" },
+    { "source": "/((?!assets/).*)", "destination": "/index.html" }
+  ],
+  "headers": [
+    {
+      "source": "/sign/(.*)",
+      "headers": [
+        { "key": "X-Robots-Tag", "value": "noindex, nofollow" },
+        { "key": "Referrer-Policy", "value": "no-referrer" }
+      ]
+    }
+  ]
 }

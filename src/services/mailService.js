@@ -2,6 +2,7 @@
 // Resend key is set from ניהול → מייל and never comes back to the browser.
 
 import { supabase } from '../lib/supabaseClient'
+import { signOrigin } from './formsService'
 
 async function mailFn(body) {
   const { data, error } = await supabase.functions.invoke('form-mail', { body })
@@ -44,7 +45,7 @@ export const sendTestMail = (to) => mailFn({ action: 'test', to })
  *   reminder  worded as a reminder: "it's still waiting for your signature"
  */
 export const emailSignLink = (requestId, { agent, again = false, reminder = false } = {}) =>
-  mailFn({ action: 'send', requestId, agent, resend: again, reminder, origin: window.location.origin })
+  mailFn({ action: 'send', requestId, agent, resend: again, reminder, origin: signOrigin() })
 
 /** The signed PDF again, to the contact — the first one goes by itself on signing. */
 export const emailSignedCopy = (requestId, agent) => mailFn({ action: 'copy', requestId, agent })
