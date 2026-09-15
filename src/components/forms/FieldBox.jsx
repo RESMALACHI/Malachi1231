@@ -11,7 +11,7 @@ import { boxStyle } from './PageStack'
  *   not yours      quiet: the other side's box, or its value once filled
  *   error          red ring, after a failed attempt to send or sign
  */
-export default function FieldBox({ field, value, boxHeightPx, editable, error, onClick, attachmentName, accent = 'sky' }) {
+export default function FieldBox({ field, value, boxHeightPx, editable, error, highlight = false, onClick, attachmentName, accent = 'sky' }) {
   const filled = !isEmpty(value)
   const size = Math.max(7, Math.min(boxHeightPx * 0.6, 16))
   const ltr = /^(number|phone|email|idNumber|date)$/.test(field.type)
@@ -78,9 +78,10 @@ export default function FieldBox({ field, value, boxHeightPx, editable, error, o
       onClick={editable ? onClick : undefined}
       tabIndex={editable ? 0 : -1}
       aria-label={field.label}
+      aria-pressed={field.type === 'checkbox' ? filled : undefined}
       className={`absolute flex items-center justify-center overflow-hidden rounded-[3px] px-0.5 transition ${tone} ${
         editable ? 'cursor-pointer' : 'cursor-default'
-      } ${error ? 'ring-2 ring-rose-500' : ''}`}
+      } ${error ? 'ring-2 ring-rose-500' : ''} ${highlight ? 'z-10 animate-pulse ring-4 ring-amber-400' : ''}`}
       style={boxStyle(field)}
     >
       {content()}

@@ -171,7 +171,12 @@ export default function FormFiller({ template, contact, extraEmail, draft, agent
                     editable={mine(f)}
                     accent={f.filler === 'sender' ? 'amber' : 'sky'}
                     error={errorIds.includes(f.id)}
-                    onClick={() => setActiveId(f.id)}
+                    onClick={() => {
+                      // A checkbox ticks right on the page, as it does for the client.
+                      if (f.type !== 'checkbox') return setActiveId(f.id)
+                      setValues((cur) => ({ ...cur, [f.id]: !cur[f.id] }))
+                      setErrorIds((ids) => ids.filter((x) => x !== f.id))
+                    }}
                   />
                 ))
             }}

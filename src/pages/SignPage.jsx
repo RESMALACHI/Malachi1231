@@ -70,6 +70,19 @@ export default function SignPage() {
     window.scrollTo({ top: Math.max(0, y), behavior: 'smooth' })
   }
 
+  // A box to point at without opening anything — a checkbox is ticked on the
+  // page itself, so "the next field" only scrolls to it and makes it glow.
+  const [flashId, setFlashId] = useState(null)
+  const goTo = (f, delay) => {
+    scrollTo(f)
+    if (f.type === 'checkbox') {
+      setFlashId(f.id)
+      setTimeout(() => setFlashId((cur) => (cur === f.id ? null : cur)), 1800)
+    } else {
+      setTimeout(() => setActiveId(f.id), delay)
+    }
+  }
+
   const openNext = useCallback(
     (afterId = null) => {
       const order = mine
@@ -77,13 +90,21 @@ export default function SignPage() {
       const next =
         order.slice(start).find((f) => missingMine.some((m) => m.id === f.id)) ||
         order.find((f) => missingMine.some((m) => m.id === f.id))
-      if (next) {
-        scrollTo(next)
-        setTimeout(() => setActiveId(next.id), 250)
-      }
+      if (next) goTo(next, 250)
     },
     [mine, missingMine]
   )
+
+  /** A tap on a box: a checkbox ticks (or unticks) right there; anything else opens its sheet. */
+  const pick = (f) => {
+    if (f.type === 'checkbox') {
+      setValues((cur) => ({ ...cur, [f.id]: !cur[f.id] }))
+      setErrorIds((e) => e.filter((x) => x !== f.id))
+      setFlashId(null)
+    } else {
+      setActiveId(f.id)
+    }
+  }
 
   const saveValue = (v) => {
     const id = activeId
@@ -97,12 +118,7 @@ export default function SignPage() {
       const order = mine
       const from = order.findIndex((f) => f.id === id) + 1
       const next = order.slice(from).find((f) => stillMissing.some((m) => m.id === f.id))
-      if (next) {
-        setTimeout(() => {
-          scrollTo(next)
-          setTimeout(() => setActiveId(next.id), 300)
-        }, 120)
-      }
+      if (next) setTimeout(() => goTo(next, 300), 120)
     }
   }
 
@@ -233,7 +249,8 @@ export default function SignPage() {
                   boxHeightPx={f.h * pageH}
                   editable={f.filler !== 'sender'}
                   error={errorIds.includes(f.id)}
-                  onClick={() => setActiveId(f.id)}
+                  highlight={flashId === f.id}
+                  onClick={() => pick(f)}
                 />
               ))
           }}
