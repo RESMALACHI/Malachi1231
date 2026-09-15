@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Check, Loader2, Mail, MessageCircle, Palette, RotateCcw, Save } from 'lucide-react'
 import { getFormMessages, saveFormMessages } from '../../services/formsService'
-import { mailMessages, previewMail } from '../../services/mailService'
 import { PLACEHOLDERS, WA_DEFAULTS, waText } from '../../lib/formMessages'
-import { INPUT, useDebounced } from './ui'
+// The same file the form-mail function sends with — pure, so the app can run it.
+import { DEFAULTS, mergeMessages, renderEmail, signedLabel } from '../../../supabase/functions/form-mail/templates.ts'
+import { INPUT } from './ui'
 
 // The messages a client gets, in the order a form meets them.
 const KINDS = [
@@ -34,22 +35,23 @@ const SAMPLE = { name: 'דני כהן', templateName: 'הסכם התקשרות',
  */
 export default function MessagesTab({ agent, notify }) {
   const [draft, setDraft] = useState(null)
-  const [defaults, setDefaults] = useState(null)
   const [kind, setKind] = useState('link')
   const [dirty, setDirty] = useState(false)
   const [saving, setSaving] = useState(false)
-  const [preview, setPreview] = useState({ subject: '', html: '', loading: true })
   const focused = useRef(null) // { path, el } — where a placeholder chip inserts
 
-  // What is in force now: the server's email texts over their defaults, plus
-  // the WhatsApp texts saved here.
+  // What is in force now: the saved texts over the defaults — merged here, by
+  // the same code the server sends with.
   useEffect(() => {
     let alive = true
-    Promise.all([mailMessages(), getFormMessages({ fresh: true })])
-      .then(([m, saved]) => {
+    getFormMessages({ fresh: true })
+      .then((saved) => {
         if (!alive) return
-        setDefaults({ ...m.defaults, ...WA_DEFAULTS })
-        setDraft({ ...m.messages, wa_link: saved.wa_link || WA_DEFAULTS.wa_link, wa_reminder: saved.wa_reminder || WA_DEFAULTS.wa_reminder })
+        setDraft({
+          ...mergeMessages(saved),
+          wa_link: saved.wa_link || WA_DEFAULTS.wa_link,
+          wa_reminder: saved.wa_reminder || WA_DEFAULTS.wa_reminder,
+        })
       })
       .catch((e) => notify({ type: 'error', text: e.message || 'טעינת ההודעות נכשלה' }))
     return () => {
@@ -59,19 +61,18 @@ export default function MessagesTab({ agent, notify }) {
 
   const current = KINDS.find((k) => k.key === kind)
 
-  // ── The email preview, from the server, a moment after typing stops ──
-  const settled = useDebounced(draft, 400)
-  useEffect(() => {
-    if (!settled || current.channel !== 'mail') return
-    let alive = true
-    setPreview((p) => ({ ...p, loading: true }))
-    previewMail(kind, settled, agent)
-      .then((r) => alive && setPreview({ subject: r.subject, html: r.html, loading: false }))
-      .catch(() => alive && setPreview((p) => ({ ...p, loading: false })))
-    return () => {
-      alive = false
-    }
-  }, [settled, kind, current.channel, agent])
+  // ── The preview, drawn right here with the server's own template code ──
+  // (supabase/functions/form-mail/templates.ts) — instant on every keystroke,
+  // every switch between messages and every colour, and exactly what is sent.
+  const preview = useMemo(() => {
+    if (!draft || current.channel !== 'mail') return null
+    return renderEmail(
+      kind,
+      { name: SAMPLE.name, templateName: SAMPLE.templateName, initiator: agent, date: signedLabel(new Date().toISOString()) },
+      draft,
+      kind === 'copy' ? '' : SAMPLE.link
+    )
+  }, [draft, kind, current.channel, agent])
 
   const get = (path) => path.split('.').reduce((o, k) => (o ? o[k] : ''), draft) ?? ''
   const set = useCallback((path, value) => {
@@ -99,9 +100,8 @@ export default function MessagesTab({ agent, notify }) {
   }
 
   const resetKind = () => {
-    if (!defaults) return
-    if (current.channel === 'wa') set(kind, defaults[kind])
-    else setDraft((d) => ({ ...d, [kind]: { ...defaults[kind] } }))
+    if (current.channel === 'wa') set(kind, WA_DEFAULTS[kind])
+    else setDraft((d) => ({ ...d, [kind]: { ...DEFAULTS[kind], button: DEFAULTS[kind].button || '', color: '' } }))
     setDirty(true)
   }
 
@@ -191,6 +191,9 @@ export default function MessagesTab({ agent, notify }) {
                     <input {...field(`${kind}.button`)} maxLength={60} className={INPUT} />
                   </Field>
                 )}
+                <Field label="הצבע של המייל הזה">
+                  <ColorPicker value={draft[kind].color} inherit={draft.color} onChange={(hex) => set(`${kind}.color`, hex)} />
+                </Field>
               </>
             ) : (
               <Field label="ההודעה" hint="אם תמחקו את {קישור}, הקישור יתווסף לבד בסוף ההודעה.">
@@ -231,25 +234,8 @@ export default function MessagesTab({ agent, notify }) {
               <Field label="השם בראש המייל">
                 <input {...field('brand')} maxLength={60} className={INPUT} />
               </Field>
-              <Field label="צבע">
-                <div className="flex flex-wrap gap-2">
-                  {COLORS.map((c) => {
-                    const on = draft.color === c.hex
-                    return (
-                      <button
-                        key={c.hex}
-                        type="button"
-                        onClick={() => set('color', c.hex)}
-                        className={`flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-bold transition ${
-                          on ? 'ring-2 ring-slate-900 ring-offset-2' : 'ring-1 ring-slate-200 hover:ring-slate-300'
-                        }`}
-                      >
-                        <span className="h-5 w-5 rounded-md" style={{ background: c.hex }} />
-                        {c.name}
-                      </button>
-                    )
-                  })}
-                </div>
+              <Field label="הצבע הרגיל" hint="של כל מייל שלא בחרתם לו צבע משלו.">
+                <ColorPicker value={draft.color} onChange={(hex) => set('color', hex)} />
               </Field>
               <Field label="פתיחה">
                 <input {...field('greeting')} maxLength={200} className={INPUT} />
@@ -268,10 +254,9 @@ export default function MessagesTab({ agent, notify }) {
             <div className="card overflow-hidden">
               <div className="flex items-center gap-2 border-b border-slate-100 px-4 py-2.5 text-sm">
                 <span className="font-bold text-slate-400">נושא:</span>
-                <span className="min-w-0 flex-1 truncate font-bold text-slate-800">{preview.subject}</span>
-                {preview.loading && <Loader2 className="h-4 w-4 shrink-0 animate-spin text-slate-300" />}
+                <span className="min-w-0 flex-1 truncate font-bold text-slate-800">{preview?.subject}</span>
               </div>
-              <iframe title="תצוגה מקדימה של המייל" srcDoc={preview.html} sandbox="" className="h-[560px] w-full bg-slate-100" />
+              <iframe title="תצוגה מקדימה של המייל" srcDoc={preview?.html || ''} sandbox="" className="h-[560px] w-full bg-slate-100" />
             </div>
           ) : (
             <div className="card flex min-h-[320px] flex-col justify-end gap-2 bg-[#e5ddd5] p-4">
@@ -282,6 +267,33 @@ export default function MessagesTab({ agent, notify }) {
           )}
         </div>
       </div>
+    </div>
+  )
+}
+
+/**
+ * The colour chips. With `inherit` (the general colour), a first chip means
+ * "no colour of its own" — stored as ''.
+ */
+function ColorPicker({ value, onChange, inherit }) {
+  const chip = (on) =>
+    `flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-bold transition ${
+      on ? 'ring-2 ring-slate-900 ring-offset-2' : 'ring-1 ring-slate-200 hover:ring-slate-300'
+    }`
+  return (
+    <div className="flex flex-wrap gap-2">
+      {inherit !== undefined && (
+        <button type="button" onClick={() => onChange('')} className={chip(!value)}>
+          <span className="h-5 w-5 rounded-md ring-2 ring-white ring-offset-1 ring-offset-slate-200" style={{ background: inherit }} />
+          כמו כל המיילים
+        </button>
+      )}
+      {COLORS.map((c) => (
+        <button key={c.hex} type="button" onClick={() => onChange(c.hex)} className={chip(value === c.hex)}>
+          <span className="h-5 w-5 rounded-md" style={{ background: c.hex }} />
+          {c.name}
+        </button>
+      ))}
     </div>
   )
 }

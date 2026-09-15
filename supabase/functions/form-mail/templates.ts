@@ -8,6 +8,9 @@
 //   {שם} first name · {שם מלא} · {טופס} form · {נציג} who sent it · {תאריך}
 // The office's text is escaped like everything else — words, not HTML — and
 // the button to the form is always there, whatever the text says.
+//
+// Pure — no Deno, no imports — so the designer in the app imports this same
+// file to draw its preview instantly: what it shows is what is sent.
 
 const esc = (s: unknown) =>
   String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!)
@@ -43,7 +46,13 @@ const str = (v: unknown, fallback: string, max: number) => {
   return (s || fallback).slice(0, max)
 }
 
-/** The office's settings over the defaults — every field checked, nothing trusted. */
+const isHex = (v: unknown) => /^#[0-9a-f]{6}$/i.test(String(v || ''))
+
+/**
+ * The office's settings over the defaults — every field checked, nothing
+ * trusted. Each email may have a colour of its own; '' means "the colour of
+ * all the emails".
+ */
 export function mergeMessages(raw: any) {
   const r = raw && typeof raw === 'object' ? raw : {}
   const part = (k: Kind) => {
@@ -53,11 +62,12 @@ export function mergeMessages(raw: any) {
       subject: str(v.subject, d.subject, 200),
       body: str(v.body, d.body, 3000),
       button: d.button ? str(v.button, d.button, 60) : '',
+      color: isHex(v.color) ? String(v.color) : '',
     }
   }
   return {
     brand: str(r.brand, DEFAULTS.brand, 60),
-    color: /^#[0-9a-f]{6}$/i.test(String(r.color || '')) ? String(r.color) : DEFAULTS.color,
+    color: isHex(r.color) ? String(r.color) : DEFAULTS.color,
     greeting: str(r.greeting, DEFAULTS.greeting, 200),
     footer: typeof r.footer === 'string' ? r.footer.trim().slice(0, 500) : DEFAULTS.footer,
     link: part('link'),
@@ -116,19 +126,20 @@ function button(href: string, label: string, color: string) {
 export function renderEmail(kind: Kind, v: Vars, raw: any, link = '') {
   const m = mergeMessages(raw)
   const t = m[kind]
+  const color = t.color || m.color
   const lines = t.body.split(/\n+/).map((l) => l.trim()).filter(Boolean)
   const greeting = m.greeting ? `<p style="margin:0 0 12px;">${fill(m.greeting, v, true)}</p>` : ''
   const paragraphs = lines
     .map((l, i) => `<p style="margin:0 0 12px;${i ? 'color:#475569;' : ''}">${fill(l, v, true)}</p>`)
     .join('\n')
   const cta = link
-    ? `${button(link, t.button || DEFAULTS.link.button, m.color)}
+    ? `${button(link, t.button || DEFAULTS.link.button, color)}
 <p style="margin:0 0 4px;color:#64748b;font-size:13px;">אם הכפתור לא נפתח, אפשר להעתיק את הקישור לדפדפן:</p>
-<p dir="ltr" style="margin:0 0 8px;font-size:12px;color:${m.color};word-break:break-all;text-align:left;">${esc(link)}</p>`
+<p dir="ltr" style="margin:0 0 8px;font-size:12px;color:${color};word-break:break-all;text-align:left;">${esc(link)}</p>`
     : ''
   return {
     subject: fill(t.subject, v, false),
-    html: frame(greeting + paragraphs + cta, fill(m.footer, v, true), m.brand, m.color),
+    html: frame(greeting + paragraphs + cta, fill(m.footer, v, true), m.brand, color),
     text: [fill(m.greeting, v, false), '', ...lines.map((l) => fill(l, v, false)), ...(link ? ['', link] : []), '', fill(m.footer, v, false)]
       .join('\n')
       .trim(),
