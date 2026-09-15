@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Navigate } from 'react-router-dom'
-import { Activity, Inbox, Layers, Mail, MapPin, MessageCircle, Settings, Sparkles, Target, Users, Webhook, Zap } from 'lucide-react'
+import { Activity, DatabaseBackup, Inbox, Layers, Mail, MapPin, MessageCircle, Settings, Sparkles, Target, Users, Webhook, Zap } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { isAdminAgent, pinFor } from '../lib/agents'
 import AgentsPanel from '../components/AgentsPanel'
@@ -10,6 +10,7 @@ import GoalsPanel from '../components/GoalsPanel'
 import OfficePanel from '../components/OfficePanel'
 import BotWhatsAppPanel from '../components/BotWhatsAppPanel'
 import MailPanel from '../components/MailPanel'
+import BackupPanel from '../components/BackupPanel'
 import LeadsInbox from '../components/LeadsInbox'
 import LeadsPanel from '../components/LeadsPanel'
 import PagesPanel from '../components/PagesPanel'
@@ -26,6 +27,7 @@ const SECTIONS = [
   { key: 'office', label: 'מיקום המשרד', icon: MapPin, hint: 'לפתיחת סיכום יום אוטומטית ביציאה' },
   { key: 'botwa', label: 'ווצאפ הבוט', icon: MessageCircle, hint: 'המופע שדרכו הבוט שולח הודעות' },
   { key: 'mail', label: 'מייל', icon: Mail, hint: 'חשבון Resend שדרכו נשלחים טפסים ועותקים חתומים' },
+  { key: 'backup', label: 'גיבויים', icon: DatabaseBackup, hint: 'גיבוי מלא כל לילה, ועותק שבועי למייל' },
   { key: 'brain', label: 'מוח ה-AI', icon: Sparkles, hint: 'מה העוזר יודע ואיך הוא עונה' },
   { key: 'pages', label: 'עמודים', icon: Layers, hint: 'מה מופיע בתפריט לכולם' },
 ]
@@ -122,6 +124,7 @@ export default function ManagePage() {
         {section === 'office' && <OfficePanel />}
         {section === 'botwa' && <BotWhatsAppPanel />}
         {section === 'mail' && <MailPanel />}
+        {section === 'backup' && <BackupPanel />}
         {section === 'brain' && <BrainPanel />}
         {section === 'pages' && <PagesPanel />}
       </section>

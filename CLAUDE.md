@@ -133,7 +133,8 @@ a real send with `app_settings.wa_health` (`ok:true` = a reply actually went out
 but is NOT logged in and `supabase login` needs a browser, so use the Supabase MCP
 `deploy_edge_function` (project `uhmzdhtjabhbcyslovfk`) — it replaces ALL files, so
 send every file, and keep `verify_jwt: false` on `wa-webhook` (Green API cannot send
-a JWT) and on `form-sign` (clients signing a form have no login); `form-mail` keeps it on. Smoke-test a deploy without touching WhatsApp:
+a JWT), on `form-sign` (clients signing a form have no login) and on `backup` (pg_cron
+calls it with `?t=<app_auth.backup_token>`); `form-mail` keeps it on. Smoke-test a deploy without touching WhatsApp:
 `curl -X POST ".../wa-webhook?t=wrong" -d '{"typeWebhook":"incomingMessageReceived"}'`
 → `{"ignored":"bad_token"}` means the module booted.
 Green API's free plan is flaky, so `wa-notification-consumer` + `wa-journal-poller`
@@ -141,6 +142,18 @@ drain its HTTP queue / journals as a fallback. `wa_processed` dedupes.
 
 Meta's official WhatsApp Cloud API cannot replace this: it has no group messaging
 and would take over each agent's personal number.
+
+## Backups — the app's own (the Supabase plan is free: no restorable backups)
+
+`backup` edge function (migration 0018), every night at 23:30 UTC via pg_cron:
+one zip of every public table as JSON (`backup_table_json`), `schema.sql`
+(`backup_schema` — tables, constraints, indexes, policies, functions: the only
+full copy of the schema anywhere) and every stored file, into the private
+`backups` bucket, kept 30 days. On the night into Sunday it is also emailed
+(Resend) to the address in ניהול → גיבויים (`app_settings.backup_settings`);
+`app_settings.backup_last` is the last run. Secrets are left out on purpose:
+`app_auth`, `user_google_tokens`, `whatsapp_instances`. The SQL functions are
+service-role only.
 
 ## Danger zones — think before touching
 
