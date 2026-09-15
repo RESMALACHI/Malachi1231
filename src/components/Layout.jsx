@@ -24,7 +24,7 @@ const PAGE_TITLES = {
   '/claim-yard': 'פגישות אבודות',
   '/tasks': 'משימות',
   '/whatsapp': 'ווצאפ',
-  '/clients': 'לקוחות',
+  '/forms': 'טפסים',
   '/day-summary': 'סיכום יום',
   '/agents-daily': 'דוח יומי',
   '/info': 'מידע שימושי',

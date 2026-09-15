@@ -21,6 +21,7 @@ import {
   Megaphone,
   BookOpenCheck,
   Swords,
+  FileSignature,
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { useUnassigned } from '../context/UnassignedContext'
@@ -442,7 +443,7 @@ export default function Sidebar({ open, onClose, dark, onTheme }) {
             so the last button isn't half-swallowed by it. */}
         <div className="relative space-y-2 border-t border-white/10 p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
           {!isHidden('clients') && (
-            <FooterAction to="/clients" icon={Contact} label="לקוחות" tone="gold" onNavigate={close} />
+            <FooterAction to="/forms" icon={FileSignature} label="טפסים" tone="gold" onNavigate={close} />
           )}
           {canControl && (
             <FooterAction to="/manage" icon={Settings} label="ניהול" tone="grey" onNavigate={close} />

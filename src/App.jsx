@@ -15,7 +15,9 @@ const AdminDashboard = lazyWithReload(() => import('./pages/AdminDashboard'))
 const ClaimYardPage = lazyWithReload(() => import('./pages/ClaimYardPage'))
 const TasksPage = lazyWithReload(() => import('./pages/TasksPage'))
 const WhatsAppPage = lazyWithReload(() => import('./pages/WhatsAppPage'))
-const ClientsPage = lazyWithReload(() => import('./pages/ClientsPage'))
+// "לקוחות" (a never-finished Bambi CRM view) became טפסים; /clients redirects.
+const FormsPage = lazyWithReload(() => import('./pages/FormsPage'))
+const SignPage = lazyWithReload(() => import('./pages/SignPage'))
 const DaySummaryPage = lazyWithReload(() => import('./pages/DaySummaryPage'))
 const AgentsDailyPage = lazyWithReload(() => import('./pages/AgentsDailyPage'))
 const InfoPage = lazyWithReload(() => import('./pages/InfoPage'))
@@ -53,6 +55,10 @@ export default function App() {
         <Routes>
           <Route path="/login" element={<LoginPage />} />
 
+          {/* A client signing a form — public, no login: the link's token is
+              the permission, checked by the form-sign edge function. */}
+          <Route path="/sign/:token" element={<SignPage />} />
+
           {/* Office wall-board — full screen, no sidebar, no agent picker.
               Signed in is enough; a TV shouldn't need a name chosen. */}
           <Route
@@ -81,7 +87,8 @@ export default function App() {
             <Route path="/claim-yard" element={<ClaimYardPage />} />
             <Route path="/tasks" element={<TasksPage />} />
             <Route path="/whatsapp" element={<WhatsAppPage />} />
-            <Route path="/clients" element={<ClientsPage />} />
+            <Route path="/forms" element={<FormsPage />} />
+            <Route path="/clients" element={<Navigate to="/forms" replace />} />
             <Route path="/day-summary" element={<DaySummaryPage />} />
             <Route path="/agents-daily" element={<AgentsDailyPage />} />
             <Route path="/info" element={<InfoPage />} />

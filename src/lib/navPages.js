@@ -7,7 +7,8 @@ export const CONTROLLABLE_PAGES = [
   { key: 'training', label: 'זירת אימון' },
   { key: 'agents-daily', label: 'דוח יומי (מנהל)' },
   { key: 'info', label: 'מידע שימושי' },
-  { key: 'clients', label: 'לקוחות' },
+  // Key kept from the old "לקוחות" page, so a choice to hide it still holds.
+  { key: 'clients', label: 'טפסים' },
   { key: 'whatsapp', label: 'ווצאפ' },
   { key: 'today', label: 'היום שלי' },
   { key: 'leads', label: 'לידים' },

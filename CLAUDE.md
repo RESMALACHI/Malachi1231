@@ -131,7 +131,7 @@ a real send with `app_settings.wa_health` (`ok:true` = a reply actually went out
 but is NOT logged in and `supabase login` needs a browser, so use the Supabase MCP
 `deploy_edge_function` (project `uhmzdhtjabhbcyslovfk`) — it replaces ALL files, so
 send every file, and keep `verify_jwt: false` on `wa-webhook` (Green API cannot send
-a JWT). Smoke-test a deploy without touching WhatsApp:
+a JWT) and on `form-sign` (clients signing a form have no login). Smoke-test a deploy without touching WhatsApp:
 `curl -X POST ".../wa-webhook?t=wrong" -d '{"typeWebhook":"incomingMessageReceived"}'`
 → `{"ignored":"bad_token"}` means the module booted.
 Green API's free plan is flaky, so `wa-notification-consumer` + `wa-journal-poller`
@@ -164,8 +164,20 @@ and would take over each agent's personal number.
 - `index.css` — a large hand-maintained `.dark` remap + `.tv-*` keyframes.
 - `browser-extension/` — MV3 Chrome extension that autofills BMBY meeting forms
   via the `crm-bridge` edge function.
-- `crm-proxy` edge function is a **stub** (`not_wired`) — the "לקוחות" page's Bambi
-  CRM integration was never finished.
+- `crm-proxy` edge function is a **stub** (`not_wired`) — the old "לקוחות" page's
+  Bambi CRM integration was never finished; that page is gone (/clients → /forms).
+- `/forms` (טפסים) — the office's own iForms: templates (a PDF + boxes drawn in
+  the editor), contacts, sent forms, e-signature. Migration 0015. The client signs
+  at the PUBLIC `/sign/:token` page, which talks only to the `form-sign` edge
+  function (**verify_jwt false** — the 64-hex token is the permission). The signed
+  PDF is the office's template PDF stamped with PNGs (`stamp.ts`): Hebrew is
+  rendered to images in the browser (`lib/fieldImage.js`) because pdf-lib draws
+  Hebrew backwards; the agent's boxes (price) come from `sender_images` saved at
+  send time, never from the client. A certificate page + the file's SHA-256 +
+  `form_events` are the evidence — signed rows can't be edited or deleted from the
+  app (RLS), and the team can't write `signed/` in storage. Template page images
+  are rendered once on upload with pdf.js using `intent: 'print'` (the display
+  intent waits on requestAnimationFrame and hangs in a background tab).
 - `/training` (זירת אימון) — practice booking calls against virtual prospects.
   **Free by design**: the browser does speech-to-text and the voice; the prospect
   and the grading coach are `training-sim` on the Groq free plan (8K tokens/min,
