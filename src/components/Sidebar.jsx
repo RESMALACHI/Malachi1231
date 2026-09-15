@@ -95,6 +95,11 @@ function FooterAction({ to, icon: Icon, label, tone, onNavigate }) {
       base: 'bg-gradient-to-l from-green-500 to-emerald-500 text-white shadow-green-900/30',
       ring: 'ring-green-300/70',
     },
+    // iForms' blue — טפסים replaced it, and the team knows forms by this colour.
+    sky: {
+      base: 'bg-gradient-to-l from-sky-700 to-sky-500 text-white shadow-sky-900/30',
+      ring: 'ring-sky-300/70',
+    },
     // Deliberately the quiet one. Management sits beside two buttons the team
     // presses all day; it should be reachable, not competing with them.
     grey: {
@@ -443,7 +448,7 @@ export default function Sidebar({ open, onClose, dark, onTheme }) {
             so the last button isn't half-swallowed by it. */}
         <div className="relative space-y-2 border-t border-white/10 p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
           {!isHidden('clients') && (
-            <FooterAction to="/forms" icon={FileSignature} label="טפסים" tone="gold" onNavigate={close} />
+            <FooterAction to="/forms" icon={FileSignature} label="טפסים" tone="sky" onNavigate={close} />
           )}
           {canControl && (
             <FooterAction to="/manage" icon={Settings} label="ניהול" tone="grey" onNavigate={close} />
