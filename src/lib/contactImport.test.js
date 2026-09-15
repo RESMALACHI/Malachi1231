@@ -31,3 +31,8 @@ test('columns are found by header, in any order — iForms export', () => {
 test('no name column is a clear error, not a silent empty import', () => {
   assert.throws(() => rowsToContacts([['טלפון'], ['050']]), /עמודת "שם"/)
 })
+
+test('the history export dropped here says where it belongs', () => {
+  const head = ['לקוח', 'טופס', 'סטטוס', 'מייל', 'טלפון', 'יוזם', 'נוצר בתאריך', 'נחתם בתאריך']
+  assert.throws(() => rowsToContacts([head, ['דני', '', 'נחתם']]), /היסטוריית טפסים/)
+})

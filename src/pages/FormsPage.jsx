@@ -81,7 +81,9 @@ export default function FormsPage() {
         })}
       </nav>
 
-      {tab === 'history' && <HistoryTab templates={templates} agent={selectedAgent} notify={notify} refreshKey={refreshKey} />}
+      {tab === 'history' && (
+        <HistoryTab templates={templates} agent={selectedAgent} notify={notify} refreshKey={refreshKey} isManager={isManager} />
+      )}
       {tab === 'send' && (
         <SendTab
           templates={templates}

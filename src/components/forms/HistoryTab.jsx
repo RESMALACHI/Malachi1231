@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   Search,
   FileDown,
@@ -12,7 +12,10 @@ import {
   Paperclip,
   FileSpreadsheet,
   Loader2,
+  Upload,
 } from 'lucide-react'
+import { parseCsv } from '../../lib/contactImport'
+import { rowsToHistory } from '../../lib/historyImport'
 import {
   STATUS,
   allRequests,
@@ -21,6 +24,7 @@ import {
   downloadCsv,
   fileUrl,
   getRequest,
+  importHistory,
   listRequests,
   pageUrls,
   signLink,
@@ -32,7 +36,7 @@ import FormFiller from './FormFiller'
 import ConfirmDialog from '../ConfirmDialog'
 
 /** היסטוריית טפסים — every form sent, where it stands, and what to do next. */
-export default function HistoryTab({ templates, agent, notify, refreshKey }) {
+export default function HistoryTab({ templates, agent, notify, refreshKey, isManager }) {
   const [search, setSearch] = useState('')
   const [status, setStatus] = useState('')
   const [templateId, setTemplateId] = useState('')
@@ -45,7 +49,37 @@ export default function HistoryTab({ templates, agent, notify, refreshKey }) {
   const [draft, setDraft] = useState(null) // { request, template }
   const [confirm, setConfirm] = useState(null) // { kind, request }
   const [exporting, setExporting] = useState(false)
+  const [importing, setImporting] = useState(false)
+  const fileRef = useRef(null)
   const dsearch = useDebounced(search)
+
+  // iForms' own "ייצוא לאקסל" from its history screen — the office's past
+  // forms, kept here as records beside the ones sent from the app.
+  const importFile = async (file) => {
+    if (!file) return
+    setImporting(true)
+    try {
+      let rows
+      if (/\.xlsx?$/i.test(file.name)) {
+        const { default: readXlsxFile } = await import('read-excel-file')
+        rows = await readXlsxFile(file)
+      } else {
+        rows = parseCsv(await file.text())
+      }
+      const history = rowsToHistory(rows)
+      const r = await importHistory(history)
+      notify({
+        type: 'success',
+        text: `יובאו ${r.added} טפסים מ-iForms${r.updated ? ` · ${r.updated} עודכנו לנחתם` : ''}${r.unchanged ? ` · ${r.unchanged} כבר היו` : ''}`,
+      })
+      load()
+    } catch (e) {
+      notify({ type: 'error', text: e.message || 'הייבוא נכשל' })
+    } finally {
+      setImporting(false)
+      if (fileRef.current) fileRef.current.value = ''
+    }
+  }
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -127,7 +161,16 @@ export default function HistoryTab({ templates, agent, notify, refreshKey }) {
 
   const actions = (r) => (
     <div className="flex items-center justify-end gap-0.5">
-      {r.status === 'signed' && (
+      {/* A record from iForms: the form and its file live there. */}
+      {r.source === 'iforms' && r.status === 'signed' && (
+        <span className="px-1.5 text-[11px] font-semibold text-slate-400" title="הקובץ החתום נמצא ב-iForms">
+          הקובץ ב-iForms
+        </span>
+      )}
+      {r.source === 'iforms' && r.status !== 'signed' && (
+        <Act icon={Trash2} label="מחיקת הרשומה" onClick={() => setConfirm({ kind: 'delete', request: r })} tone="text-rose-500 hover:text-rose-700" />
+      )}
+      {r.source !== 'iforms' && r.status === 'signed' && (
         <>
           <Act icon={FileDown} label="פתיחת הקובץ החתום" onClick={() => openPdf(r)} tone="text-green-700 hover:text-green-900" />
           <Act icon={ShieldCheck} label="פרטי החתימה" onClick={() => setAudit(r)} />
@@ -148,7 +191,7 @@ export default function HistoryTab({ templates, agent, notify, refreshKey }) {
           <Act icon={Trash2} label="מחיקה" onClick={() => setConfirm({ kind: 'delete', request: r })} tone="text-rose-500 hover:text-rose-700" />
         </>
       )}
-      {r.status === 'cancelled' && (
+      {r.status === 'cancelled' && r.source !== 'iforms' && (
         <>
           <Act icon={ShieldCheck} label="מעקב" onClick={() => setAudit(r)} />
           <Act icon={Trash2} label="מחיקה" onClick={() => setConfirm({ kind: 'delete', request: r })} tone="text-rose-500 hover:text-rose-700" />
@@ -157,9 +200,16 @@ export default function HistoryTab({ templates, agent, notify, refreshKey }) {
     </div>
   )
 
-  const badge = (s) => (
-    <span className={`inline-flex whitespace-nowrap rounded-md px-2 py-0.5 text-[11.5px] font-bold ${STATUS[s]?.cls || 'bg-slate-100'}`}>
-      {STATUS[s]?.label || s}
+  const badge = (s, source) => (
+    <span className="inline-flex items-center gap-1">
+      <span className={`inline-flex whitespace-nowrap rounded-md px-2 py-0.5 text-[11.5px] font-bold ${STATUS[s]?.cls || 'bg-slate-100'}`}>
+        {STATUS[s]?.label || s}
+      </span>
+      {source === 'iforms' && s === 'signed' && (
+        <span className="rounded bg-sky-50 px-1 text-[10px] font-bold text-sky-700 ring-1 ring-sky-200" title="יובא מ-iForms">
+          iForms
+        </span>
+      )}
     </span>
   )
 
@@ -200,10 +250,24 @@ export default function HistoryTab({ templates, agent, notify, refreshKey }) {
         >
           הצג הכל
         </button>
+        {isManager && (
+          <>
+            <button
+              onClick={() => fileRef.current?.click()}
+              disabled={importing}
+              className="ms-auto inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-bold text-slate-700 transition hover:bg-slate-50 disabled:opacity-60"
+              title="קובץ 'ייצוא לאקסל' ממסך היסטוריית הטפסים של iForms. אפשר לייבא שוב קובץ חדש יותר — אין כפילויות."
+            >
+              {importing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+              ייבוא מ-iForms
+            </button>
+            <input ref={fileRef} type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={(e) => importFile(e.target.files?.[0])} />
+          </>
+        )}
         <button
           onClick={exportAll}
           disabled={exporting}
-          className="ms-auto inline-flex items-center gap-1.5 rounded-xl bg-green-600 px-3 py-2.5 text-sm font-bold text-white transition hover:bg-green-700 disabled:opacity-60"
+          className={`${isManager ? '' : 'ms-auto '}inline-flex items-center gap-1.5 rounded-xl bg-green-600 px-3 py-2.5 text-sm font-bold text-white transition hover:bg-green-700 disabled:opacity-60`}
         >
           {exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileSpreadsheet className="h-4 w-4" />}
           ייצוא לאקסל
@@ -233,7 +297,7 @@ export default function HistoryTab({ templates, agent, notify, refreshKey }) {
                 <td className="max-w-[16rem] truncate px-2 py-3 font-semibold text-slate-800" title={r.template_name}>
                   {r.template_name}
                 </td>
-                <td className="px-2 py-3">{badge(r.status)}</td>
+                <td className="px-2 py-3">{badge(r.status, r.source)}</td>
                 <td className="px-2 py-3 font-semibold text-slate-800">{r.contact_name}</td>
                 <td className="max-w-[12rem] truncate px-2 py-3 text-slate-600" dir="ltr" style={{ textAlign: 'right' }}>
                   {r.contact_email}
@@ -263,7 +327,7 @@ export default function HistoryTab({ templates, agent, notify, refreshKey }) {
           <div key={r.id} className="flex flex-col gap-1.5 py-3">
             <div className="flex items-center gap-2">
               <span className="min-w-0 flex-1 truncate text-sm font-bold text-slate-900">{r.contact_name}</span>
-              {badge(r.status)}
+              {badge(r.status, r.source)}
             </div>
             <p className="truncate text-xs font-semibold text-slate-500">{r.template_name}</p>
             <div className="flex items-center gap-2 text-[11px] font-semibold text-slate-400">

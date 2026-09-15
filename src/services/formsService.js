@@ -202,6 +202,71 @@ export async function importContacts(rows, createdBy) {
   return { added: fresh.length, skipped }
 }
 
+// ── History imported from iForms ────────────────────────────────────────────
+
+/**
+ * iForms' history export → records here. Safe to run again on a newer export:
+ * see planHistoryImport. Rows are linked to a contact by phone when the contact
+ * list already has them.
+ */
+export async function importHistory(fileRows) {
+  const { identOf, planHistoryImport } = await import('../lib/historyImport')
+  const [contacts, existingRaw] = await Promise.all([
+    fetchAll(() => supabase.from('form_contacts').select('id, phone').not('phone', 'is', null)),
+    fetchAll(() =>
+      supabase
+        .from('form_requests')
+        .select('id, contact_phone, contact_name, status, template_name, created_at')
+        .eq('source', 'iforms')
+    ),
+  ])
+  const contactByPhone = new Map(contacts.map((c) => [normalizePhone(c.phone), c.id]))
+  const NO_FORM = 'טופס מ-iForms'
+  const existing = existingRaw.map((e) => ({
+    id: e.id,
+    ident: identOf(e.contact_phone, e.contact_name),
+    created: e.created_at.slice(0, 10),
+    status: e.status,
+    template: e.template_name === NO_FORM ? '' : e.template_name,
+  }))
+
+  const plan = planHistoryImport(fileRows, existing)
+  // 09:00 UTC is midday in Israel whatever the season — the date part of the
+  // stored timestamp is the date iForms showed.
+  const at = (d) => (d ? `${d}T09:00:00Z` : null)
+
+  // An upgrade (waiting in the last export, signed in this one) replaces the
+  // waiting record. Not an UPDATE: the app may never turn a row into "signed"
+  // by editing it (RLS) — only the signing function can — so the waiting row is
+  // removed (allowed for imported rows) and the signed one added.
+  const rows = [...plan.inserts, ...plan.upgrades.map((u) => u.row)].map((r) => {
+    const phone = normalizePhone(r.phone) || null
+    return {
+      template_id: null,
+      template_snapshot: {},
+      template_name: r.template || NO_FORM,
+      contact_id: (phone && contactByPhone.get(phone)) || null,
+      contact_name: r.name,
+      contact_phone: phone,
+      contact_email: r.email || null,
+      initiator: r.initiator || null,
+      status: r.status,
+      source: 'iforms',
+      created_at: at(r.created),
+      signed_at: at(r.signed),
+    }
+  })
+  for (let i = 0; i < rows.length; i += 500) {
+    const { error } = await supabase.from('form_requests').insert(rows.slice(i, i + 500))
+    if (error) throw error
+  }
+  if (plan.upgrades.length) {
+    const { error } = await supabase.from('form_requests').delete().in('id', plan.upgrades.map((u) => u.id))
+    if (error) throw error
+  }
+  return { added: plan.inserts.length, updated: plan.upgrades.length, unchanged: plan.unchanged }
+}
+
 // ── Sent forms ──────────────────────────────────────────────────────────────
 
 export const STATUS = {
@@ -211,13 +276,16 @@ export const STATUS = {
   signing: { label: 'בחתימה…', cls: 'bg-indigo-100 text-indigo-800' },
   signed: { label: 'נחתם', cls: 'bg-green-100 text-green-800' },
   cancelled: { label: 'בוטל', cls: 'bg-rose-100 text-rose-700' },
+  // Records imported from iForms — the form itself lives there.
+  imported_waiting: { label: 'ממתין ב-iForms', cls: 'bg-amber-100 text-amber-800' },
+  imported_draft: { label: 'טיוטה ב-iForms', cls: 'bg-slate-100 text-slate-600' },
 }
 
 function requestsQuery({ search = '', status = '', templateId = '' }, count = false) {
   let q = supabase
     .from('form_requests')
     .select(
-      'id, template_id, template_name, contact_id, contact_name, contact_phone, contact_email, extra_email, initiator, status, token, attachments, signed_at, signed_pdf_path, signed_pdf_sha256, created_at',
+      'id, template_id, template_name, contact_id, contact_name, contact_phone, contact_email, extra_email, initiator, status, source, token, attachments, signed_at, signed_pdf_path, signed_pdf_sha256, created_at',
       count ? { count: 'exact' } : undefined
     )
     .order('created_at', { ascending: false })
@@ -227,7 +295,10 @@ function requestsQuery({ search = '', status = '', templateId = '' }, count = fa
     const like = `%${s.replace(/[%,()]/g, ' ')}%`
     q = q.or(`contact_name.ilike.${like},contact_email.ilike.${like},contact_phone.ilike.${like},template_name.ilike.${like}`)
   }
-  if (status === 'waiting') q = q.in('status', ['sent', 'opened', 'signing'])
+  // The filters read as the office thinks of them: "waiting" is waiting,
+  // whether the form went out from here or from iForms.
+  if (status === 'waiting') q = q.in('status', ['sent', 'opened', 'signing', 'imported_waiting'])
+  else if (status === 'draft') q = q.in('status', ['draft', 'imported_draft'])
   else if (status) q = q.eq('status', status)
   if (templateId) q = q.eq('template_id', templateId)
   return q

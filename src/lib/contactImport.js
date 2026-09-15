@@ -60,7 +60,14 @@ export function rowsToContacts(rows) {
     const i = head.findIndex((h) => re.test(h))
     if (i !== -1) col[key] = i
   }
-  if (col.name === undefined) throw new Error('לא נמצאה עמודת "שם" בקובץ')
+  if (col.name === undefined) {
+    // iForms' HISTORY export has "לקוח" and "סטטוס", not "שם" — the likeliest
+    // wrong file here, so say where it goes instead of just "no name column".
+    if (head.includes('סטטוס') && head.includes('לקוח')) {
+      throw new Error('זה קובץ היסטוריית טפסים — מייבאים אותו בלשונית "היסטוריית טפסים", בכפתור "ייבוא מ-iForms"')
+    }
+    throw new Error('לא נמצאה עמודת "שם" בקובץ')
+  }
   const cell = (r, k) => (col[k] === undefined ? '' : String(r[col[k]] ?? '').trim())
   return rows
     .slice(1)
