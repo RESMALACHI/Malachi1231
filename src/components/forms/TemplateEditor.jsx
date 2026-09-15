@@ -235,20 +235,21 @@ export default function TemplateEditor({ template, onClose, onSaved }) {
                           key={f.id}
                           onPointerDown={(e) => startDrag(e, f, 'move')}
                           className={`absolute flex cursor-move items-center gap-1 overflow-hidden rounded-[3px] border px-1 text-[10px] font-bold ${
+                            // On the paper: exact colours, the same by night.
                             sender
-                              ? 'border-amber-500 bg-amber-200/60 text-amber-900'
-                              : 'border-sky-600 bg-sky-200/60 text-sky-900'
-                          } ${isSel ? 'z-10 ring-2 ring-offset-1 ring-slate-900' : ''}`}
+                              ? 'border-amber-500 bg-[#fde68a]/60 text-[#78350f]'
+                              : 'border-[#0284c7] bg-[#bae6fd]/60 text-[#0c4a6e]'
+                          } ${isSel ? 'z-10 ring-2 ring-offset-1 ring-[#0f172a]' : ''}`}
                           style={boxStyle(f)}
                           title={`${f.label} · ${FIELD_TYPES[f.type]?.label}`}
                         >
                           <Icon className="h-3 w-3 shrink-0" aria-hidden="true" />
                           <span className="truncate">{f.label}</span>
-                          {f.required && <span className="text-rose-600">*</span>}
+                          {f.required && <span className="text-[#e11d48]">*</span>}
                           {isSel && (
                             <span
                               onPointerDown={(e) => startDrag(e, f, 'resize')}
-                              className="absolute -bottom-1 -right-1 h-3 w-3 cursor-nwse-resize rounded-sm border-2 border-white bg-slate-900"
+                              className="absolute -bottom-1 -right-1 h-3 w-3 cursor-nwse-resize rounded-sm border-2 border-[#ffffff] bg-[#0f172a]"
                               aria-label="שינוי גודל"
                             />
                           )}

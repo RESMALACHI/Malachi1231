@@ -39,7 +39,8 @@ function Page({ index, page, renderOverlay, pageRef }) {
         pageRef?.(index, el)
       }}
       data-page={index}
-      className="relative w-full overflow-hidden rounded-sm bg-white shadow-[0_2px_18px_-6px_rgba(15,23,42,0.35)] ring-1 ring-slate-200"
+      // Paper stays paper in night mode — exact colours, untouched by the remap.
+      className="relative w-full overflow-hidden rounded-sm bg-[#ffffff] shadow-[0_2px_18px_-6px_rgba(15,23,42,0.35)] ring-1 ring-[#e2e8f0]"
       style={{ aspectRatio: `${page.w} / ${page.h}` }}
     >
       {page.url ? (
@@ -50,10 +51,10 @@ function Page({ index, page, renderOverlay, pageRef }) {
           draggable={false}
         />
       ) : (
-        <div className="absolute inset-0 animate-pulse bg-slate-100" />
+        <div className="absolute inset-0 animate-pulse bg-[#f1f5f9]" />
       )}
       {width > 0 && renderOverlay?.(index, width)}
-      <span className="pointer-events-none absolute bottom-1.5 start-2 rounded bg-white/80 px-1.5 text-[10px] font-bold text-slate-400">
+      <span className="pointer-events-none absolute bottom-1.5 start-2 rounded bg-[#ffffff]/80 px-1.5 text-[10px] font-bold text-[#94a3b8]">
         {index + 1}
       </span>
     </div>

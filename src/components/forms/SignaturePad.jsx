@@ -136,14 +136,16 @@ const SignaturePad = forwardRef(function SignaturePad({ height = 220, onChange }
         onPointerUp={up}
         onPointerCancel={up}
         onPointerLeave={up}
-        className="block w-full touch-none rounded-2xl border-2 border-dashed border-slate-300 bg-white"
+        // Paper-white in night mode too (exact values dodge the dark remap):
+        // the ink is dark blue, and the signature goes onto a white page.
+        className="block w-full touch-none rounded-2xl border-2 border-dashed border-[#cbd5e1] bg-[#ffffff]"
         style={{ height }}
         aria-label="משטח חתימה"
       />
       {/* The line people sign on — it makes a blank pad read as "sign here". */}
-      <div className="pointer-events-none absolute inset-x-8 bottom-10 border-b border-slate-300" aria-hidden="true" />
+      <div className="pointer-events-none absolute inset-x-8 bottom-10 border-b border-[#cbd5e1]" aria-hidden="true" />
       {empty && (
-        <span className="pointer-events-none absolute inset-0 flex items-center justify-center text-sm font-semibold text-slate-300">
+        <span className="pointer-events-none absolute inset-0 flex items-center justify-center text-sm font-semibold text-[#94a3b8]">
           חתמו כאן
         </span>
       )}

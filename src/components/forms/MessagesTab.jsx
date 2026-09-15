@@ -259,8 +259,10 @@ export default function MessagesTab({ agent, notify }) {
               <iframe title="תצוגה מקדימה של המייל" srcDoc={preview?.html || ''} sandbox="" className="h-[560px] w-full bg-slate-100" />
             </div>
           ) : (
-            <div className="card flex min-h-[320px] flex-col justify-end gap-2 bg-[#e5ddd5] p-4">
-              <div className="ms-auto max-w-[85%] whitespace-pre-wrap break-words rounded-2xl rounded-se-sm bg-[#d9fdd3] px-3.5 py-2.5 text-sm leading-relaxed text-slate-800 shadow-sm">
+            // WhatsApp's own colours, written as exact values so night mode's
+            // remap leaves them alone: the message looks the way the client sees it.
+            <div className="flex min-h-[320px] flex-col justify-end gap-2 rounded-2xl border border-[#d6cfc7] bg-[#e5ddd5] p-4 shadow-sm">
+              <div className="ms-auto max-w-[85%] whitespace-pre-wrap break-words rounded-2xl rounded-se-sm bg-[#d9fdd3] px-3.5 py-2.5 text-sm leading-relaxed text-[#111b21] shadow-sm">
                 {waText(kind, draft, { ...SAMPLE, initiator: agent })}
               </div>
             </div>
