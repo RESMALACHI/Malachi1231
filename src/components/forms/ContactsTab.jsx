@@ -15,7 +15,7 @@ import { INPUT, Pager, useDebounced } from './ui'
 import ConfirmDialog from '../ConfirmDialog'
 
 /** אנשי קשר — the people forms go to. Imports iForms' Excel export in one go. */
-export default function ContactsTab({ agent, notify, onSendTo }) {
+export default function ContactsTab({ agent, notify, onSendTo, isAdmin }) {
   const [search, setSearch] = useState('')
   const [createdBy, setCreatedBy] = useState('')
   const [creators, setCreators] = useState([])
@@ -132,24 +132,29 @@ export default function ContactsTab({ agent, notify, onSendTo }) {
             <UserPlus className="h-4 w-4" />
             הוספת איש קשר
           </button>
-          <button
-            onClick={() => fileRef.current?.click()}
-            disabled={importing}
-            className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-bold text-slate-700 transition hover:bg-slate-50 disabled:opacity-60"
-            title="קובץ אקסל או CSV — למשל הייצוא מ-iForms"
-          >
-            {importing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
-            ייבוא מאקסל
-          </button>
-          <input ref={fileRef} type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={(e) => importFile(e.target.files?.[0])} />
-          <button
-            onClick={exportAll}
-            disabled={exporting}
-            className="inline-flex items-center gap-1.5 rounded-xl bg-green-600 px-3 py-2.5 text-sm font-bold text-white transition hover:bg-green-700 disabled:opacity-60"
-          >
-            {exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileSpreadsheet className="h-4 w-4" />}
-            ייצוא לאקסל
-          </button>
+          {/* The whole contact list in or out at once — system admins only. */}
+          {isAdmin && (
+            <>
+              <button
+                onClick={() => fileRef.current?.click()}
+                disabled={importing}
+                className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-bold text-slate-700 transition hover:bg-slate-50 disabled:opacity-60"
+                title="קובץ אקסל או CSV — למשל הייצוא מ-iForms"
+              >
+                {importing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+                ייבוא מאקסל
+              </button>
+              <input ref={fileRef} type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={(e) => importFile(e.target.files?.[0])} />
+              <button
+                onClick={exportAll}
+                disabled={exporting}
+                className="inline-flex items-center gap-1.5 rounded-xl bg-green-600 px-3 py-2.5 text-sm font-bold text-white transition hover:bg-green-700 disabled:opacity-60"
+              >
+                {exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileSpreadsheet className="h-4 w-4" />}
+                ייצוא לאקסל
+              </button>
+            </>
+          )}
         </div>
       </div>
 
@@ -210,7 +215,7 @@ export default function ContactsTab({ agent, notify, onSendTo }) {
       </div>
       {!loading && data.rows.length === 0 && (
         <p className="py-10 text-center text-sm font-semibold text-slate-400">
-          אין אנשי קשר עדיין — אפשר לייבא את הייצוא מ-iForms בכפתור "ייבוא מאקסל"
+          {isAdmin ? 'אין אנשי קשר עדיין — אפשר לייבא את הייצוא מ-iForms בכפתור "ייבוא מאקסל"' : 'אין אנשי קשר להצגה'}
         </p>
       )}
       <Pager page={page} pageSize={pageSize} count={data.count} onPage={setPage} onPageSize={setPageSize} />

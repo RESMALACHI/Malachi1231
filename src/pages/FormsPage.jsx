@@ -35,7 +35,8 @@ const GUIDE_KEY = 'forms.guide.hidden'
 
 export default function FormsPage() {
   const { selectedAgent } = useAuth()
-  const isManager = isManagerAgent(selectedAgent) || isAdminAgent(selectedAgent)
+  const isAdmin = isAdminAgent(selectedAgent)
+  const isManager = isManagerAgent(selectedAgent) || isAdmin
   const [params, setParams] = useSearchParams()
   const tab = TABS.some((t) => t.key === params.get('tab') && (!t.managers || isManager)) ? params.get('tab') : 'history'
   const [templates, setTemplates] = useState([])
@@ -156,7 +157,7 @@ export default function FormsPage() {
           agent={selectedAgent}
           notify={notify}
           refreshKey={refreshKey}
-          isManager={isManager}
+          isAdmin={isAdmin}
           onGoSend={() => go('send')}
         />
       )}
@@ -174,6 +175,7 @@ export default function FormsPage() {
         <ContactsTab
           agent={selectedAgent}
           notify={notify}
+          isAdmin={isAdmin}
           onSendTo={(c) => {
             setContact(c)
             go('send')

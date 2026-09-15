@@ -86,7 +86,7 @@ function Main({ icon: Icon, label, onClick, cls, busy = false }) {
 }
 
 /** היסטוריית טפסים — every form sent, where it stands, and what to do next. */
-export default function HistoryTab({ templates, agent, notify, refreshKey, isManager, onGoSend }) {
+export default function HistoryTab({ templates, agent, notify, refreshKey, isAdmin, onGoSend }) {
   const [search, setSearch] = useState('')
   const [status, setStatus] = useState('')
   const [templateId, setTemplateId] = useState('')
@@ -326,7 +326,9 @@ export default function HistoryTab({ templates, agent, notify, refreshKey, isMan
         >
           הצג הכל
         </button>
-        {isManager && (
+        {/* Moving data in and out — the whole client list at once — is for
+            system admins only. */}
+        {isAdmin && (
           <>
             <button
               onClick={() => fileRef.current?.click()}
@@ -338,16 +340,16 @@ export default function HistoryTab({ templates, agent, notify, refreshKey, isMan
               ייבוא מ-iForms
             </button>
             <input ref={fileRef} type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={(e) => importFile(e.target.files?.[0])} />
+            <button
+              onClick={exportAll}
+              disabled={exporting}
+              className="inline-flex items-center gap-1.5 rounded-xl bg-green-600 px-3 py-2.5 text-sm font-bold text-white transition hover:bg-green-700 disabled:opacity-60"
+            >
+              {exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileSpreadsheet className="h-4 w-4" />}
+              ייצוא לאקסל
+            </button>
           </>
         )}
-        <button
-          onClick={exportAll}
-          disabled={exporting}
-          className={`${isManager ? '' : 'ms-auto '}inline-flex items-center gap-1.5 rounded-xl bg-green-600 px-3 py-2.5 text-sm font-bold text-white transition hover:bg-green-700 disabled:opacity-60`}
-        >
-          {exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileSpreadsheet className="h-4 w-4" />}
-          ייצוא לאקסל
-        </button>
       </div>
 
       {/* ── Table (desktop) ── */}
