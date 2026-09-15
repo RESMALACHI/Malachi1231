@@ -269,16 +269,35 @@ export async function importHistory(fileRows) {
 
 // ── Sent forms ──────────────────────────────────────────────────────────────
 
+// `hint` is the status in a sentence — shown on hover and in the legend.
 export const STATUS = {
-  draft: { label: 'טיוטה', cls: 'bg-slate-100 text-slate-600' },
-  sent: { label: 'ממתין לחתימה', cls: 'bg-sky-100 text-sky-800' },
-  opened: { label: 'נפתח · ממתין', cls: 'bg-indigo-100 text-indigo-800' },
-  signing: { label: 'בחתימה…', cls: 'bg-indigo-100 text-indigo-800' },
-  signed: { label: 'נחתם', cls: 'bg-green-100 text-green-800' },
-  cancelled: { label: 'בוטל', cls: 'bg-rose-100 text-rose-700' },
+  draft: { label: 'טיוטה', cls: 'bg-slate-100 text-slate-600', hint: 'נשמר ועוד לא נשלח ללקוח' },
+  sent: { label: 'ממתין לחתימה', cls: 'bg-sky-100 text-sky-800', hint: 'נשלח ללקוח, הוא עוד לא פתח את הקישור' },
+  opened: { label: 'נפתח · ממתין', cls: 'bg-indigo-100 text-indigo-800', hint: 'הלקוח פתח את הקישור ועוד לא חתם' },
+  signing: { label: 'בחתימה…', cls: 'bg-indigo-100 text-indigo-800', hint: 'הלקוח לחץ "חתימה" — הקובץ נוצר ברגעים אלה' },
+  signed: { label: 'נחתם', cls: 'bg-green-100 text-green-800', hint: 'הלקוח חתם. הקובץ החתום נעול ושמור כאן' },
+  cancelled: { label: 'בוטל', cls: 'bg-rose-100 text-rose-700', hint: 'הקישור הושבת ואי אפשר לחתום בו' },
   // Records imported from iForms — the form itself lives there.
-  imported_waiting: { label: 'ממתין ב-iForms', cls: 'bg-amber-100 text-amber-800' },
-  imported_draft: { label: 'טיוטה ב-iForms', cls: 'bg-slate-100 text-slate-600' },
+  imported_waiting: { label: 'ממתין ב-iForms', cls: 'bg-amber-100 text-amber-800', hint: 'נשלח מ-iForms ועוד לא נחתם שם' },
+  imported_draft: { label: 'טיוטה ב-iForms', cls: 'bg-slate-100 text-slate-600', hint: 'טיוטה שנשמרה ב-iForms' },
+}
+
+/** How many forms wait, were signed, sit as drafts — the history's summary. */
+export async function statusCounts() {
+  const count = async (statuses) => {
+    const { count: n, error } = await supabase
+      .from('form_requests')
+      .select('id', { count: 'exact', head: true })
+      .in('status', statuses)
+    if (error) throw error
+    return n || 0
+  }
+  const [waiting, signed, draft] = await Promise.all([
+    count(['sent', 'opened', 'signing', 'imported_waiting']),
+    count(['signed']),
+    count(['draft', 'imported_draft']),
+  ])
+  return { waiting, signed, draft }
 }
 
 function requestsQuery({ search = '', status = '', templateId = '' }, count = false) {

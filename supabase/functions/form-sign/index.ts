@@ -3,7 +3,8 @@
 //   load    { token }  → the form to fill: page images, fields, prefilled values.
 //                        Logs "opened" (time, IP, device) — part of the evidence.
 //   submit  { token, values, images, attachments, nameImage, consent }
-//                      → stamps the signed PDF and freezes it.
+//                      → stamps the signed PDF and freezes it, then asks
+//                        form-mail to email the client their copy.
 //
 // No login: the client has none. The request's token IS the permission — 64
 // hex characters from two UUIDv4s, unguessable, and good for one signature.
@@ -69,6 +70,29 @@ function clientMeta(req: Request) {
     (req.headers.get('x-forwarded-for') || '').split(',')[0].trim() ||
     null
   return { ip, ua: (req.headers.get('user-agent') || '').slice(0, 400) || null }
+}
+
+/** d***@gmail.com — enough for the client to recognise their own address. */
+const maskEmail = (s: string) => s.replace(/^(.)[^@]*(@.*)$/, '$1***$2')
+
+async function mailCopy(requestId: string): Promise<string[]> {
+  const key = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+  const ctl = new AbortController()
+  const timer = setTimeout(() => ctl.abort(), 12_000)
+  try {
+    const res = await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/form-mail`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${key}`, apikey: key, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'copy', requestId, auto: true }),
+      signal: ctl.signal,
+    })
+    const out = await res.json().catch(() => ({}))
+    return out?.ok && Array.isArray(out.to) ? out.to.map(maskEmail) : []
+  } catch {
+    return []
+  } finally {
+    clearTimeout(timer)
+  }
 }
 
 Deno.serve(async (req) => {
@@ -245,7 +269,12 @@ Deno.serve(async (req) => {
           meta: { pdf_sha256: pdfHash, values_sha256: valuesHash },
         })
 
-        return json({ ok: true, pdfUrl: await signedUrl(path) })
+        // The client's copy by email (form-mail, when mail is connected). The
+        // signature already stands — a mail that fails or is slow changes
+        // nothing here, the client just doesn't hear "sent to your email".
+        const emailedTo = await mailCopy(r.id)
+
+        return json({ ok: true, pdfUrl: await signedUrl(path), emailedTo })
       } catch (e) {
         // Give the request back, so the client can try again.
         await admin.from('form_requests').update({ status: r.status }).eq('id', r.id)

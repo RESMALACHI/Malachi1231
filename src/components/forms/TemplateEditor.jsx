@@ -355,13 +355,28 @@ export default function TemplateEditor({ template, onClose, onSaved }) {
               <p className="font-bold text-slate-700">איך בונים טופס</p>
               <ol className="mt-2 list-decimal space-y-1 ps-4 text-xs">
                 <li>בוחרים סוג שדה למעלה ולוחצים על המקום בדף.</li>
-                <li>
+                <li>לוחצים על שדה כדי לקבוע לו כותרת, ומי ממלא אותו:</li>
+                <li className="list-none">
                   <span className="font-bold text-sky-700">כחול</span> — הלקוח ממלא.{' '}
                   <span className="font-bold text-amber-700">כתום</span> — הנציג ממלא לפני השליחה (למשל סכום).
                 </li>
-                <li>שם, טלפון ומייל יכולים להתמלא לבד מאיש הקשר.</li>
-                <li>לא לשכוח שדה חתימה.</li>
+                <li>שם, טלפון ומייל יכולים להתמלא לבד מאיש הקשר ("מילוי אוטומטי").</li>
+                <li>שומרים — והטופס מופיע ב"שליחת טפסים".</li>
               </ol>
+
+              <p className="mt-4 font-bold text-slate-700">מוכן לשליחה?</p>
+              <ul className="mt-1.5 space-y-1 text-xs">
+                {[
+                  [fields.length > 0, 'סומן לפחות שדה אחד'],
+                  [fields.some((f) => f.type === 'signature' && f.filler !== 'sender'), 'יש שדה חתימה של הלקוח'],
+                  [!dirty, 'השינויים נשמרו'],
+                ].map(([ok, label]) => (
+                  <li key={label} className={`flex items-center gap-1.5 font-semibold ${ok ? 'text-green-700' : 'text-amber-700'}`}>
+                    <span className="w-4 text-center">{ok ? '✓' : '•'}</span>
+                    {label}
+                  </li>
+                ))}
+              </ul>
             </div>
           )}
         </aside>

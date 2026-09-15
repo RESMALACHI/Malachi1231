@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { X, ShieldCheck, Loader2, FileDown, Send, Eye, PenLine, Ban, FilePlus2, RotateCw } from 'lucide-react'
+import { X, ShieldCheck, Loader2, FileDown, Send, Eye, PenLine, Ban, FilePlus2, RotateCw, Mail } from 'lucide-react'
 import { fileUrl, listEvents } from '../../services/formsService'
 
 const KIND = {
@@ -10,9 +10,14 @@ const KIND = {
   opened: { label: 'נפתח ע״י הלקוח', icon: Eye, tone: 'text-indigo-600' },
   signed: { label: 'נחתם', icon: PenLine, tone: 'text-green-600' },
   cancelled: { label: 'בוטל', icon: Ban, tone: 'text-rose-600' },
+  emailed: { label: 'נשלח במייל', icon: Mail, tone: 'text-sky-600' },
 }
 
 const CHANNEL = { link: 'קישור', whatsapp: 'ווצאפ', in_person: 'חתימה במקום' }
+
+/** "קישור לחתימה נשלח במייל" / "עותק חתום נשלח במייל" — and to whom. */
+const labelOf = (e) =>
+  e.kind === 'emailed' ? (e.meta?.what === 'copy' ? 'עותק חתום נשלח במייל' : 'קישור לחתימה נשלח במייל') : null
 
 /** A browser's user-agent, in words a manager can read. */
 export function deviceOf(ua) {
@@ -53,7 +58,7 @@ export default function AuditDialog({ request, onClose }) {
         <div className="flex items-start gap-3 border-b border-slate-100 p-5">
           <ShieldCheck className="h-7 w-7 shrink-0 text-green-600" />
           <div className="min-w-0 flex-1">
-            <p className="text-lg font-extrabold text-slate-900">פרטי החתימה</p>
+            <p className="text-lg font-extrabold text-slate-900">{request.status === 'signed' ? 'פרטי החתימה' : 'מעקב אחרי הטופס'}</p>
             <p className="truncate text-sm text-slate-600">
               {request.template_name} · {request.contact_name}
             </p>
@@ -79,11 +84,17 @@ export default function AuditDialog({ request, onClose }) {
                       <Icon className={`h-3.5 w-3.5 ${k.tone}`} />
                     </span>
                     <p className="text-sm font-bold text-slate-900">
-                      {k.label}
+                      {labelOf(e) || k.label}
                       {e.meta?.channel && <span className="font-semibold text-slate-500"> · {CHANNEL[e.meta.channel] || e.meta.channel}</span>}
                       {e.actor && e.actor !== 'client' && <span className="font-semibold text-slate-500"> · {e.actor}</span>}
                     </p>
                     <p className="text-xs font-semibold tabular-nums text-slate-500">{when(e.at)}</p>
+                    {e.kind === 'emailed' && e.meta?.to?.length > 0 && (
+                      <p className="text-[11px] text-slate-500" dir="ltr" style={{ textAlign: 'right' }}>
+                        {e.meta.to.join(', ')}
+                        {e.meta.office ? ' + העתק למשרד' : ''}
+                      </p>
+                    )}
                     {(e.ip || e.user_agent) && (
                       <p className="text-[11px] text-slate-400" dir="ltr" style={{ textAlign: 'right' }}>
                         {[e.ip, deviceOf(e.user_agent)].filter(Boolean).join(' · ')}

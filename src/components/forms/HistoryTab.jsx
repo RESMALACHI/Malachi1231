@@ -3,7 +3,6 @@ import {
   Search,
   FileDown,
   ShieldCheck,
-  MessageCircle,
   Link2,
   ExternalLink,
   Ban,
@@ -13,6 +12,12 @@ import {
   FileSpreadsheet,
   Loader2,
   Upload,
+  Mail,
+  HelpCircle,
+  Send,
+  Clock,
+  CheckCircle2,
+  FileEdit,
 } from 'lucide-react'
 import { parseCsv } from '../../lib/contactImport'
 import { rowsToHistory } from '../../lib/historyImport'
@@ -28,15 +33,24 @@ import {
   listRequests,
   pageUrls,
   signLink,
+  statusCounts,
 } from '../../services/formsService'
-import { INPUT, Pager, dateFmt, useDebounced } from './ui'
+import { emailSignedCopy } from '../../services/mailService'
+import { INPUT, Pager, dateFmt, useDebounced, useMailReady } from './ui'
 import SentDialog from './SentDialog'
 import AuditDialog from './AuditDialog'
 import FormFiller from './FormFiller'
 import ConfirmDialog from '../ConfirmDialog'
 
+/** The summary at the top — each one is also the filter for its status. */
+const SUMMARY = [
+  { key: 'waiting', label: 'ממתינים לחתימה', icon: Clock, tone: 'text-sky-700 bg-sky-50 ring-sky-200' },
+  { key: 'signed', label: 'נחתמו', icon: CheckCircle2, tone: 'text-green-700 bg-green-50 ring-green-200' },
+  { key: 'draft', label: 'טיוטות', icon: FileEdit, tone: 'text-slate-700 bg-slate-50 ring-slate-200' },
+]
+
 /** היסטוריית טפסים — every form sent, where it stands, and what to do next. */
-export default function HistoryTab({ templates, agent, notify, refreshKey, isManager }) {
+export default function HistoryTab({ templates, agent, notify, refreshKey, isManager, onGoSend }) {
   const [search, setSearch] = useState('')
   const [status, setStatus] = useState('')
   const [templateId, setTemplateId] = useState('')
@@ -50,8 +64,12 @@ export default function HistoryTab({ templates, agent, notify, refreshKey, isMan
   const [confirm, setConfirm] = useState(null) // { kind, request }
   const [exporting, setExporting] = useState(false)
   const [importing, setImporting] = useState(false)
+  const [counts, setCounts] = useState(null)
+  const [legend, setLegend] = useState(false)
+  const [mailing, setMailing] = useState(null) // request id
   const fileRef = useRef(null)
   const dsearch = useDebounced(search)
+  const mailReady = useMailReady()
 
   // iForms' own "ייצוא לאקסל" from its history screen — the office's past
   // forms, kept here as records beside the ones sent from the app.
@@ -95,6 +113,23 @@ export default function HistoryTab({ templates, agent, notify, refreshKey, isMan
   useEffect(() => {
     load()
   }, [load, refreshKey])
+
+  // The summary follows every change the list does (a cancel, an import, a send).
+  useEffect(() => {
+    statusCounts().then(setCounts).catch(() => {})
+  }, [data])
+
+  const mailCopy = async (r) => {
+    setMailing(r.id)
+    try {
+      const res = await emailSignedCopy(r.id, agent)
+      notify({ type: 'success', text: `העותק החתום נשלח ל-${(res?.to || []).join(', ')}` })
+    } catch (e) {
+      notify({ type: 'error', text: e.message })
+    } finally {
+      setMailing(null)
+    }
+  }
 
   useEffect(() => setPage(0), [dsearch, status, templateId, pageSize])
 
@@ -155,9 +190,23 @@ export default function HistoryTab({ templates, agent, notify, refreshKey, isMan
 
   const Act = ({ icon: Icon, label, onClick, tone = 'text-slate-500 hover:text-slate-900' }) => (
     <button onClick={onClick} title={label} aria-label={label} className={`rounded-lg p-1.5 transition hover:bg-slate-100 ${tone}`}>
-      <Icon className="h-4 w-4" />
+      <Icon className={`h-4 w-4 ${Icon === Loader2 ? 'animate-spin' : ''}`} />
     </button>
   )
+
+  // The one thing a row most likely needs, in words — the rest as icons.
+  const Main = ({ icon: Icon, label, onClick, cls, busy = false }) => (
+    <button
+      onClick={onClick}
+      disabled={busy}
+      className={`me-1 inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-lg px-2.5 py-1.5 text-xs font-bold transition disabled:opacity-60 ${cls}`}
+    >
+      {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Icon className="h-3.5 w-3.5" />}
+      {label}
+    </button>
+  )
+
+  const hasEmail = (r) => !!(r.contact_email || r.extra_email)
 
   const actions = (r) => (
     <div className="flex items-center justify-end gap-0.5">
@@ -172,23 +221,31 @@ export default function HistoryTab({ templates, agent, notify, refreshKey, isMan
       )}
       {r.source !== 'iforms' && r.status === 'signed' && (
         <>
-          <Act icon={FileDown} label="פתיחת הקובץ החתום" onClick={() => openPdf(r)} tone="text-green-700 hover:text-green-900" />
-          <Act icon={ShieldCheck} label="פרטי החתימה" onClick={() => setAudit(r)} />
+          <Main icon={FileDown} label="הקובץ החתום" onClick={() => openPdf(r)} cls="bg-green-600 text-white hover:bg-green-700" />
+          {mailReady && hasEmail(r) && (
+            <Act
+              icon={mailing === r.id ? Loader2 : Mail}
+              label="שליחת העותק החתום שוב במייל"
+              onClick={() => mailing || mailCopy(r)}
+              tone="text-sky-700 hover:text-sky-900"
+            />
+          )}
+          <Act icon={ShieldCheck} label="פרטי החתימה — מתי, מאיזה מכשיר, טביעת אצבע" onClick={() => setAudit(r)} />
         </>
       )}
       {['sent', 'opened'].includes(r.status) && (
         <>
-          <Act icon={MessageCircle} label="שליחה חוזרת" onClick={() => setResend(r)} tone="text-green-700 hover:text-green-900" />
-          <Act icon={Link2} label="העתקת קישור" onClick={() => copyLink(r)} />
-          <Act icon={ExternalLink} label="פתיחת עמוד החתימה" onClick={() => window.open(signLink(r.token), '_blank')} />
-          <Act icon={ShieldCheck} label="מעקב" onClick={() => setAudit(r)} />
-          <Act icon={Ban} label="ביטול הטופס" onClick={() => setConfirm({ kind: 'cancel', request: r })} tone="text-rose-500 hover:text-rose-700" />
+          <Main icon={Send} label="שליחה חוזרת" onClick={() => setResend(r)} cls="bg-sky-700 text-white hover:bg-sky-800" />
+          <Act icon={Link2} label="העתקת הקישור לחתימה" onClick={() => copyLink(r)} />
+          <Act icon={ExternalLink} label="פתיחת עמוד החתימה (כמו שהלקוח רואה)" onClick={() => window.open(signLink(r.token), '_blank')} />
+          <Act icon={ShieldCheck} label="מעקב — מתי נשלח ומתי נפתח" onClick={() => setAudit(r)} />
+          <Act icon={Ban} label="ביטול הטופס — הקישור יפסיק לעבוד" onClick={() => setConfirm({ kind: 'cancel', request: r })} tone="text-rose-500 hover:text-rose-700" />
         </>
       )}
       {r.status === 'draft' && (
         <>
-          <Act icon={Pencil} label="המשך עריכה" onClick={() => continueDraft(r)} tone="text-sky-700 hover:text-sky-900" />
-          <Act icon={Trash2} label="מחיקה" onClick={() => setConfirm({ kind: 'delete', request: r })} tone="text-rose-500 hover:text-rose-700" />
+          <Main icon={Pencil} label="המשך ושליחה" onClick={() => continueDraft(r)} cls="bg-sky-50 text-sky-800 ring-1 ring-sky-200 hover:bg-sky-100" />
+          <Act icon={Trash2} label="מחיקת הטיוטה" onClick={() => setConfirm({ kind: 'delete', request: r })} tone="text-rose-500 hover:text-rose-700" />
         </>
       )}
       {r.status === 'cancelled' && r.source !== 'iforms' && (
@@ -202,7 +259,7 @@ export default function HistoryTab({ templates, agent, notify, refreshKey, isMan
 
   const badge = (s, source) => (
     <span className="inline-flex items-center gap-1">
-      <span className={`inline-flex whitespace-nowrap rounded-md px-2 py-0.5 text-[11.5px] font-bold ${STATUS[s]?.cls || 'bg-slate-100'}`}>
+      <span title={STATUS[s]?.hint} className={`inline-flex cursor-help whitespace-nowrap rounded-md px-2 py-0.5 text-[11.5px] font-bold ${STATUS[s]?.cls || 'bg-slate-100'}`}>
         {STATUS[s]?.label || s}
       </span>
       {source === 'iforms' && s === 'signed' && (
@@ -215,9 +272,48 @@ export default function HistoryTab({ templates, agent, notify, refreshKey, isMan
 
   return (
     <div className="card flex flex-col gap-4 p-4 sm:p-5">
-      <p className="rounded-xl bg-sky-50 px-3 py-2 text-xs font-semibold text-sky-900">
-        הטפסים החתומים נשמרים כאן לצמיתות, עם קובץ נעול, טביעת אצבע ומעקב מלא — אין מחיקה אחרי 30 יום כמו ב-iForms.
-      </p>
+      {/* ── Where things stand — each box filters the list ── */}
+      <div className="grid grid-cols-3 gap-2">
+        {SUMMARY.map((s) => {
+          const on = status === s.key
+          return (
+            <button
+              key={s.key}
+              onClick={() => setStatus(on ? '' : s.key)}
+              className={`flex flex-col items-start gap-0.5 rounded-2xl p-3 text-start ring-1 transition ${s.tone} ${
+                on ? 'ring-2 ring-offset-1' : 'hover:brightness-95'
+              }`}
+              aria-pressed={on}
+            >
+              <span className="flex items-center gap-1.5 text-[11px] font-bold sm:text-xs">
+                <s.icon className="h-3.5 w-3.5" />
+                {s.label}
+              </span>
+              <span className="text-2xl font-extrabold tabular-nums">{counts ? counts[s.key].toLocaleString('en-US') : '–'}</span>
+            </button>
+          )
+        })}
+      </div>
+
+      <div className="-mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] font-semibold text-slate-500">
+        <span>הטפסים החתומים נשמרים כאן לצמיתות, בקובץ נעול עם מעקב מלא.</span>
+        <button onClick={() => setLegend((v) => !v)} className="inline-flex items-center gap-1 font-bold text-sky-700 hover:underline">
+          <HelpCircle className="h-3.5 w-3.5" />
+          {legend ? 'הסתרת ההסבר' : 'מה אומר כל סטטוס?'}
+        </button>
+      </div>
+      {legend && (
+        <div className="grid gap-1.5 rounded-2xl bg-slate-50 p-3 sm:grid-cols-2">
+          {['draft', 'sent', 'opened', 'signed', 'cancelled', 'imported_waiting'].map((k) => (
+            <p key={k} className="flex items-center gap-2 text-xs text-slate-600">
+              <span className={`inline-flex w-28 shrink-0 justify-center whitespace-nowrap rounded-md px-2 py-0.5 text-[11px] font-bold ${STATUS[k].cls}`}>
+                {STATUS[k].label}
+              </span>
+              {STATUS[k].hint}
+            </p>
+          ))}
+        </div>
+      )}
 
       {/* ── Filters ── */}
       <div className="flex flex-wrap items-center gap-2">
@@ -330,9 +426,10 @@ export default function HistoryTab({ templates, agent, notify, refreshKey, isMan
               {badge(r.status, r.source)}
             </div>
             <p className="truncate text-xs font-semibold text-slate-500">{r.template_name}</p>
-            <div className="flex items-center gap-2 text-[11px] font-semibold text-slate-400">
-              <span className="tabular-nums">{dateFmt(r.created_at)}</span>
-              {r.initiator && <span>· {r.initiator}</span>}
+            {/* The buttons drop to a line of their own when they don't fit beside the date. */}
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 text-[11px] font-semibold text-slate-400">
+              <span className="whitespace-nowrap tabular-nums">{dateFmt(r.created_at)}</span>
+              {r.initiator && <span className="whitespace-nowrap">· {r.initiator}</span>}
               <span className="ms-auto">{actions(r)}</span>
             </div>
           </div>
@@ -340,7 +437,22 @@ export default function HistoryTab({ templates, agent, notify, refreshKey, isMan
       </div>
 
       {!loading && data.rows.length === 0 && (
-        <p className="py-10 text-center text-sm font-semibold text-slate-400">אין טפסים להצגה</p>
+        <div className="flex flex-col items-center gap-2 py-10 text-center">
+          {search || status || templateId ? (
+            <p className="text-sm font-semibold text-slate-400">אין טפסים שמתאימים לסינון</p>
+          ) : (
+            <>
+              <p className="text-sm font-bold text-slate-600">עוד לא נשלחו טפסים</p>
+              <p className="text-xs text-slate-500">כל טופס שתשלחו ללקוח יופיע כאן, עם הסטטוס שלו ומה אפשר לעשות איתו.</p>
+              {onGoSend && (
+                <button onClick={onGoSend} className="mt-1 inline-flex items-center gap-1.5 rounded-xl bg-sky-700 px-4 py-2 text-sm font-bold text-white hover:bg-sky-800">
+                  <Send className="h-4 w-4" />
+                  לשליחת טופס ראשון
+                </button>
+              )}
+            </>
+          )}
+        </div>
       )}
       {loading && data.rows.length === 0 && (
         <div className="flex justify-center py-10">

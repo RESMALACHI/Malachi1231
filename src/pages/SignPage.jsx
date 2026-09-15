@@ -27,6 +27,7 @@ export default function SignPage() {
   const [errorIds, setErrorIds] = useState([])
   const [message, setMessage] = useState('')
   const [pdfUrl, setPdfUrl] = useState(null)
+  const [emailedTo, setEmailedTo] = useState([])
   const pageEls = useRef({})
 
   useEffect(() => {
@@ -133,6 +134,7 @@ export default function SignPage() {
       const nameImage = await renderNameImage(data.contact?.name || '')
       const r = await submitSigned({ token, values: outValues, images, attachments, nameImage, consent: true })
       setPdfUrl(r.pdfUrl)
+      setEmailedTo(Array.isArray(r.emailedTo) ? r.emailedTo : [])
       setPhase('done')
       window.scrollTo({ top: 0 })
     } catch (e) {
@@ -176,6 +178,11 @@ export default function SignPage() {
           <Icon className={`h-16 w-16 ${map.tone} ${phase === 'signing' ? 'animate-spin' : ''}`} />
           <h1 className="text-2xl font-extrabold text-slate-900">{map.title}</h1>
           <p className="text-sm font-medium leading-relaxed text-slate-600">{map.text}</p>
+          {phase === 'done' && emailedTo.length > 0 && (
+            <p className="rounded-xl bg-green-50 px-3 py-2 text-sm font-semibold text-green-800">
+              עותק חתום נשלח גם למייל <span dir="ltr">{emailedTo.join(', ')}</span>
+            </p>
+          )}
           {pdfUrl && (
             <a
               href={pdfUrl}

@@ -53,7 +53,9 @@ service-role only). Keys include: `team_answers`, `shared_email`/`shared_passwor
 `wa_webhook_token`, `wa_meeting_group`, `wa_summary_group`, `sync_token`,
 `push_token`, `crm_bridge_token`, `ai_key`/`ai_endpoint`/`ai_model`/`ai_provider`,
 `gemini_api_key`, `vapid_*`, `sim_model`/`sim_effort` (the training arena's model,
-default `openai/gpt-oss-120b`). Changing an AI model or key is one `UPDATE`, no deploy.
+default `openai/gpt-oss-120b`), `resend_api_key`/`mail_from`/`mail_from_name`/
+`mail_reply_to`/`mail_office_copy` (טפסים by email — set from ניהול → מייל).
+Changing an AI model or key is one `UPDATE`, no deploy.
 
 Frontend env: only `VITE_SUPABASE_URL` + `VITE_SUPABASE_ANON_KEY` (also hard-coded
 in `vercel.json` build.env — the anon key is public by design). Supabase project ref
@@ -131,7 +133,7 @@ a real send with `app_settings.wa_health` (`ok:true` = a reply actually went out
 but is NOT logged in and `supabase login` needs a browser, so use the Supabase MCP
 `deploy_edge_function` (project `uhmzdhtjabhbcyslovfk`) — it replaces ALL files, so
 send every file, and keep `verify_jwt: false` on `wa-webhook` (Green API cannot send
-a JWT) and on `form-sign` (clients signing a form have no login). Smoke-test a deploy without touching WhatsApp:
+a JWT) and on `form-sign` (clients signing a form have no login); `form-mail` keeps it on. Smoke-test a deploy without touching WhatsApp:
 `curl -X POST ".../wa-webhook?t=wrong" -d '{"typeWebhook":"incomingMessageReceived"}'`
 → `{"ignored":"bad_token"}` means the module booted.
 Green API's free plan is flaky, so `wa-notification-consumer` + `wa-journal-poller`
@@ -178,6 +180,12 @@ and would take over each agent's personal number.
   app (RLS), and the team can't write `signed/` in storage. Template page images
   are rendered once on upload with pdf.js using `intent: 'print'` (the display
   intent waits on requestAnimationFrame and hangs in a background tab).
+  **Email** goes through `form-mail` (Resend; verify_jwt true): the sign link is
+  mailed by itself when "שלח טופס" is pressed and the contact has an address, and
+  `form-sign` calls `form-mail` `copy` with the service key right after a
+  signature, so the client gets the signed PDF (office bcc optional). Every mail
+  is a `form_events` row of kind `emailed` (meta.what = link | copy). Resend only
+  sends to anyone once the college's domain is verified there.
 - `/training` (זירת אימון) — practice booking calls against virtual prospects.
   **Free by design**: the browser does speech-to-text and the voice; the prospect
   and the grading coach are `training-sim` on the Groq free plan (8K tokens/min,

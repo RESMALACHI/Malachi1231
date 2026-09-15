@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { ChevronRight, ChevronLeft, Search, X, Loader2, UserRound } from 'lucide-react'
 import { listContacts } from '../../services/formsService'
+import { mailStatus } from '../../services/mailService'
 
 export const INPUT =
   'w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-800 outline-none transition focus:border-sky-500 focus:ring-2 focus:ring-sky-100'
@@ -13,6 +14,24 @@ export function useDebounced(value, ms = 300) {
     return () => clearTimeout(t)
   }, [value, ms])
   return v
+}
+
+/**
+ * Is mail connected? null while asking, then true / false. A failed question
+ * counts as "not connected" — the mail buttons then say so instead of failing.
+ */
+export function useMailReady() {
+  const [ready, setReady] = useState(null)
+  useEffect(() => {
+    let alive = true
+    mailStatus()
+      .then((s) => alive && setReady(!!s?.configured))
+      .catch(() => alive && setReady(false))
+    return () => {
+      alive = false
+    }
+  }, [])
+  return ready
 }
 
 /** "1 עד 50 מתוך 3,028 רשומות", page size, and paging — iForms' footer. */

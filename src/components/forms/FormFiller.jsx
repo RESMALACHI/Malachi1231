@@ -19,7 +19,8 @@ import FieldSheet from './FieldSheet'
  * Three ways out, as in iForms:
  *   שמור ללא שליחה        a draft, to finish later
  *   חתימה במכשיר הזה      the client signs here and now, on this device
- *   שלח טופס               a link for the client (WhatsApp now; mail later)
+ *   שלח טופס               a link for the client — mailed by itself when mail
+ *                          is connected (SentDialog), and WhatsApp / copy
  *
  * On send, the agent's boxes are rendered to images and stored with the
  * request — the signed PDF is stamped with those, so the price the client signs
@@ -124,14 +125,31 @@ export default function FormFiller({ template, contact, extraEmail, draft, agent
         </button>
       </div>
 
-      <div className="flex items-center justify-center gap-4 border-b border-slate-200 bg-white px-4 py-2 text-[11.5px] font-semibold text-slate-600">
-        <span className="flex items-center gap-1.5">
-          <span className="h-3 w-3 rounded-sm border border-amber-500 bg-amber-200" /> ממלא/ת הנציג
-        </span>
-        <span className="flex items-center gap-1.5">
-          <span className="h-3 w-3 rounded-sm border border-sky-500 bg-sky-100" /> ממלא הלקוח
-        </span>
-        {msg && <span className="font-bold text-rose-600">{msg}</span>}
+      {/* ── What to do here, and how far along ── */}
+      <div className="flex flex-col gap-1 border-b border-slate-200 bg-white px-4 py-2 text-[11.5px] font-semibold text-slate-600">
+        <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1">
+          <span className="flex items-center gap-1.5">
+            <span className="h-3 w-3 rounded-sm border border-amber-500 bg-amber-200" /> כתום — אתם ממלאים עכשיו
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="h-3 w-3 rounded-sm border border-sky-500 bg-sky-100" /> כחול — הלקוח ימלא (אפשר למלא לו מראש)
+          </span>
+          {msg ? (
+            <span className="font-bold text-rose-600">{msg}</span>
+          ) : senderMissing.length ? (
+            <span className="font-bold text-amber-700">
+              {senderMissing.length === 1
+                ? 'נשארה תיבה כתומה אחת למילוי — לוחצים עליה'
+                : `נשארו ${senderMissing.length} תיבות כתומות למילוי — לוחצים עליהן`}
+            </span>
+          ) : (
+            <span className="font-bold text-green-700">✓ החלק שלכם מוכן — אפשר לשלוח</span>
+          )}
+        </div>
+        <p className="hidden text-center text-[11px] font-medium text-slate-400 sm:block">
+          <b className="text-slate-500">שלח טופס</b> — הלקוח מקבל קישור וחותם אצלו · <b className="text-slate-500">חתימה במכשיר הזה</b> — הלקוח לידכם
+          וחותם עכשיו · <b className="text-slate-500">שמור ללא שליחה</b> — טיוטה, להמשיך אחר כך מההיסטוריה
+        </p>
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto p-3 sm:p-8">

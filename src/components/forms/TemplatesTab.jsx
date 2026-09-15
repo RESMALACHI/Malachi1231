@@ -59,6 +59,9 @@ export default function TemplatesTab({ templates, agent, notify, reload }) {
           <FilePlus2 className="h-5 w-5 text-sky-700" />
           העלאת טופס חדש
         </p>
+        <p className="-mt-1 text-sm text-slate-500">
+          נותנים לטופס שם, בוחרים את קובץ ה-PDF שלו, ולוחצים "העלאה ועריכת שדות". בעורך מסמנים על הדף איפה הלקוח ממלא וחותם.
+        </p>
         <div className="grid gap-2 sm:grid-cols-[1fr_1fr_auto]">
           <input value={name} onChange={(e) => setName(e.target.value)} placeholder="שם הטופס — למשל: הסכם התקשרות פרויקט הגשמה" className={INPUT} />
           <label className={`${INPUT} flex cursor-pointer items-center gap-2 truncate text-slate-500`}>
