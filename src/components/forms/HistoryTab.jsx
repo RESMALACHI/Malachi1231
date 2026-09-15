@@ -13,11 +13,7 @@ import {
   Loader2,
   Upload,
   Mail,
-  HelpCircle,
   Send,
-  Clock,
-  CheckCircle2,
-  FileEdit,
 } from 'lucide-react'
 import { parseCsv } from '../../lib/contactImport'
 import { rowsToHistory } from '../../lib/historyImport'
@@ -33,7 +29,6 @@ import {
   listRequests,
   pageUrls,
   signLink,
-  statusCounts,
 } from '../../services/formsService'
 import { emailSignedCopy } from '../../services/mailService'
 import { INPUT, Pager, dateFmt, useDebounced, useMailReady } from './ui'
@@ -41,13 +36,6 @@ import SentDialog from './SentDialog'
 import AuditDialog from './AuditDialog'
 import FormFiller from './FormFiller'
 import ConfirmDialog from '../ConfirmDialog'
-
-/** The summary at the top — each one is also the filter for its status. */
-const SUMMARY = [
-  { key: 'waiting', label: 'ממתינים לחתימה', icon: Clock, tone: 'text-sky-700 bg-sky-50 ring-sky-200' },
-  { key: 'signed', label: 'נחתמו', icon: CheckCircle2, tone: 'text-green-700 bg-green-50 ring-green-200' },
-  { key: 'draft', label: 'טיוטות', icon: FileEdit, tone: 'text-slate-700 bg-slate-50 ring-slate-200' },
-]
 
 /** היסטוריית טפסים — every form sent, where it stands, and what to do next. */
 export default function HistoryTab({ templates, agent, notify, refreshKey, isManager, onGoSend }) {
@@ -64,8 +52,6 @@ export default function HistoryTab({ templates, agent, notify, refreshKey, isMan
   const [confirm, setConfirm] = useState(null) // { kind, request }
   const [exporting, setExporting] = useState(false)
   const [importing, setImporting] = useState(false)
-  const [counts, setCounts] = useState(null)
-  const [legend, setLegend] = useState(false)
   const [mailing, setMailing] = useState(null) // request id
   const fileRef = useRef(null)
   const dsearch = useDebounced(search)
@@ -113,11 +99,6 @@ export default function HistoryTab({ templates, agent, notify, refreshKey, isMan
   useEffect(() => {
     load()
   }, [load, refreshKey])
-
-  // The summary follows every change the list does (a cancel, an import, a send).
-  useEffect(() => {
-    statusCounts().then(setCounts).catch(() => {})
-  }, [data])
 
   const mailCopy = async (r) => {
     setMailing(r.id)
@@ -272,49 +253,6 @@ export default function HistoryTab({ templates, agent, notify, refreshKey, isMan
 
   return (
     <div className="card flex flex-col gap-4 p-4 sm:p-5">
-      {/* ── Where things stand — each box filters the list ── */}
-      <div className="grid grid-cols-3 gap-2">
-        {SUMMARY.map((s) => {
-          const on = status === s.key
-          return (
-            <button
-              key={s.key}
-              onClick={() => setStatus(on ? '' : s.key)}
-              className={`flex flex-col items-start gap-0.5 rounded-2xl p-3 text-start ring-1 transition ${s.tone} ${
-                on ? 'ring-2 ring-offset-1' : 'hover:brightness-95'
-              }`}
-              aria-pressed={on}
-            >
-              <span className="flex items-center gap-1.5 text-[11px] font-bold sm:text-xs">
-                <s.icon className="h-3.5 w-3.5" />
-                {s.label}
-              </span>
-              <span className="text-2xl font-extrabold tabular-nums">{counts ? counts[s.key].toLocaleString('en-US') : '–'}</span>
-            </button>
-          )
-        })}
-      </div>
-
-      <div className="-mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] font-semibold text-slate-500">
-        <span>הטפסים החתומים נשמרים כאן לצמיתות, בקובץ נעול עם מעקב מלא.</span>
-        <button onClick={() => setLegend((v) => !v)} className="inline-flex items-center gap-1 font-bold text-sky-700 hover:underline">
-          <HelpCircle className="h-3.5 w-3.5" />
-          {legend ? 'הסתרת ההסבר' : 'מה אומר כל סטטוס?'}
-        </button>
-      </div>
-      {legend && (
-        <div className="grid gap-1.5 rounded-2xl bg-slate-50 p-3 sm:grid-cols-2">
-          {['draft', 'sent', 'opened', 'signed', 'cancelled', 'imported_waiting'].map((k) => (
-            <p key={k} className="flex items-center gap-2 text-xs text-slate-600">
-              <span className={`inline-flex w-28 shrink-0 justify-center whitespace-nowrap rounded-md px-2 py-0.5 text-[11px] font-bold ${STATUS[k].cls}`}>
-                {STATUS[k].label}
-              </span>
-              {STATUS[k].hint}
-            </p>
-          ))}
-        </div>
-      )}
-
       {/* ── Filters ── */}
       <div className="flex flex-wrap items-center gap-2">
         <div className="relative min-w-[12rem] flex-1">
